@@ -1,16 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { Logo } from "@/components/layout/logo";
 import { DesktopNav, MobileNav } from "@/components/layout/nav-links";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
-import { Avatar } from "@/components/ui/avatar";
-import { useWorkspace } from "@/components/providers/workspace-provider";
+import { UserMenu } from "@/components/layout/user-menu";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { profile, session } = useWorkspace();
-  const name = profile?.display_name ?? (session?.user.user_metadata?.display_name as string | undefined) ?? "Вы";
-
   return (
     <div className="min-h-dvh bg-milk">
       <header className="sticky top-0 z-20 border-b border-sand-200 bg-milk/85 backdrop-blur">
@@ -19,9 +14,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <DesktopNav />
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <Link href="/profile" aria-label="Мой профиль" className="rounded-full">
-              <Avatar name={name} src={profile?.avatar_url} size="sm" />
-            </Link>
+            <UserMenu />
           </div>
         </div>
       </header>

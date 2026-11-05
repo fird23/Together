@@ -28,3 +28,28 @@ export type InvitePreview = {
   startDate: string | null;
   expiresAt: string | null;
 };
+
+export type EventColor = "rose" | "amber" | "green" | "blue" | "violet" | "orange" | "teal" | "gray";
+
+export type CalendarEvent = {
+  id: string;
+  couple_id: string;
+  created_by: string | null;
+  title: string;
+  note: string | null;
+  color: EventColor;
+  start_day: string; // YYYY-MM-DD
+  end_day: string; // YYYY-MM-DD, включительно
+};
+
+export type TicketKind = "idea" | "bug" | "question" | "other";
+export type TicketStatus = "new" | "in_progress" | "done" | "declined";
+
+export type SupportTicket = {
+  id: string;
+  kind: TicketKind;
+  message: string;
+  status: TicketStatus;
+  admin_reply: string | null;
+  created_at: string;
+};

@@ -1,6 +1,5 @@
 import { PartnersPair } from "@/components/couple/partners-pair";
 import { DayCounter } from "@/components/couple/day-counter";
-import { EditStartDate } from "@/components/couple/edit-start-date";
 import { daysTogether, describeBreakdown, formatDateRu } from "@/utils/days";
 import type { Couple, Profile } from "@/types";
 
@@ -15,9 +14,6 @@ export function CoupleHero({ me, partner, couple }: { me: Profile; partner: Prof
         <div className="dashboard-day-counter"><DayCounter days={days} /></div>
         <p className="mt-2 text-sm font-medium">С {formatDateRu(couple.start_date)}</p>
         <p className="mt-0.5 text-xs text-ink">{describeBreakdown(couple.start_date)}</p>
-        <div className="mt-2">
-          <EditStartDate couple={couple} />
-        </div>
       </div>
     </section>
   );

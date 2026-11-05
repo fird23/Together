@@ -13,7 +13,6 @@ import { HabitsView } from "@/components/habits/habits-view";
 import { MoodSelector } from "@/components/mood/mood-selector";
 import { InviteManager } from "@/components/couple/invite-manager";
 import { PartnersPair } from "@/components/couple/partners-pair";
-import { EditStartDate } from "@/components/couple/edit-start-date";
 import { VennBackdrop } from "@/components/couple/venn-backdrop";
 import { DashboardSkeleton } from "@/components/couple/dashboard-skeleton";
 import { formatDateRu } from "@/utils/days";
@@ -39,7 +38,6 @@ export function DashboardView() {
             <h1 className="mt-8 font-serif text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">Ждём вашего партнёра</h1>
             <p className="mt-3 max-w-md leading-relaxed text-ink">Счётчик дней и общее пространство откроются, как только партнёр примет приглашение.</p>
             <p className="mt-6 inline-flex items-center gap-2 rounded-full bg-paper/80 px-4 py-2 text-sm ring-1 ring-sand-200"><CalendarDays className="size-4 text-accent-600" aria-hidden />Вместе с {formatDateRu(couple.start_date)}</p>
-            <div className="mt-5"><EditStartDate couple={couple} /></div>
           </div>
         </section>
         <InviteManager coupleId={couple.id} />

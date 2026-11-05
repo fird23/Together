@@ -53,3 +53,10 @@ export async function removeAvatar(userId: string, currentPath: string | null) {
   if (error || !data?.length) throw new AppError("Не удалось удалить фото. Попробуйте ещё раз.");
   if (currentPath) await db().storage.from(AVATAR_BUCKET).remove([currentPath]);
 }
+
+/** Полностью удаляет аккаунт. Партнёр остаётся в общем пространстве, ваши личные данные удаляются. */
+export async function deleteAccount(avatarPath: string | null) {
+  if (avatarPath) await db().storage.from(AVATAR_BUCKET).remove([avatarPath]); // ошибка тут не критична
+  const { error } = await db().rpc("delete_my_account");
+  if (error) throw dbError(error);
+}
