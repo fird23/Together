@@ -1,17 +1,26 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { themeInitScript } from "@/lib/theme-script";
+import { WorkspaceProvider } from "@/components/providers/workspace-provider";
 
 export const metadata: Metadata = {
-  title: "Together — пространство для двоих",
-  description: "Приватное приложение для пар: общие дни, события и воспоминания.",
+  title: { default: "Together — пространство для двоих", template: "%s — Together" },
+  description: "Приватное приложение для пар: общие дни, важные даты и профиль партнёра.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
+export const viewport: Viewport = {
+  themeColor: "#F7F5EC",
+};
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="ru">
-      <body>{children}</body>
+    <html lang="ru" data-theme="hydrangea" data-mode="light" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
+      <body>
+        <WorkspaceProvider>{children}</WorkspaceProvider>
+      </body>
     </html>
   );
 }

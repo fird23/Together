@@ -1,13 +1,17 @@
 # Together
 
-Приватное веб-приложение для пары: регистрация, профили, приглашение партнёра и счётчик дней отношений.
+Приватное веб-приложение для пары: регистрация, приглашение партнёра по ссылке, общая страница со счётчиком дней и трекер общих/личных привычек.
 
-## Быстрый запуск
+Стек: Next.js (App Router), React, TypeScript, Tailwind CSS v4, Supabase (Auth + PostgreSQL + RLS), Zod, Lucide.
 
-1. Установи зависимости: `npm install`.
-2. Создай Supabase-проект и заполни `.env.local` по примеру `.env.example`.
-3. Выполни `supabase/schema.sql` в Supabase SQL Editor.
-4. Настрой Auth Redirect URLs по инструкции в `SETUP.md`.
-5. Запусти `npm run dev` и открой http://localhost:3000.
+Запуск и обновление: [SETUP.md](./SETUP.md). План развития: [PLAN.md](./PLAN.md).
 
-Подробная инструкция: [SETUP.md](./SETUP.md).
+## Структура
+
+- `src/app` — страницы и маршруты (`(auth)`, `(onboarding)`, `(dashboard)`, `invite/[token]`)
+- `src/components` — интерфейс (`ui`, `layout`, `auth`, `couple`, `providers`)
+- `src/services` — обращения к Supabase (вход, пара, приглашения, профиль)
+- `src/lib` — клиент Supabase, проверка данных (Zod), токены приглашений, тексты ошибок
+- `src/utils` — даты, счётчик дней, ближайшие памятные даты
+- `src/lib/themes.ts`, `src/app/globals.css` — темы оформления (цвета только в globals.css)
+- `supabase` — `schema.sql` (установка с нуля) и `migrations`

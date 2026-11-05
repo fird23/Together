@@ -1,7 +1,7 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js";
 
-// Supabase currently supports both legacy anon keys and the newer publishable keys.
-// Keep both variable names so either key copied from the Supabase dashboard works.
+// Supabase поддерживает и старые anon-ключи, и новые publishable-ключи.
+// Подойдёт любой, который скопирован из панели Supabase.
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
 const supabaseKey = (
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
@@ -20,17 +20,7 @@ export const supabase = isSupabaseConfigured
     })
   : null;
 
-export async function sha256(value: string) {
-  const bytes = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
-}
-
-export function createInviteToken() {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return Array.from(bytes)
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
+export function db() {
+  if (!supabase) throw new Error("Supabase не настроен.");
+  return supabase;
 }
