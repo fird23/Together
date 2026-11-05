@@ -7,7 +7,8 @@ import {
   Heart, HeartHandshake, Image as ImageIcon, LogOut, Menu, Settings,
   ShieldCheck, Sparkles, UserRound, Users, X,
 } from 'lucide-react';
-import { isSupabaseConfigured, supabase, createInviteToken, sha256 } from '@/lib/supabase';
+import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { generateInviteToken, sha256Hex } from '@/lib/invite';
 import type { Session } from '@supabase/supabase-js';
 
 type Profile = { id: string; email: string; display_name: string; avatar_url: string | null };
@@ -101,7 +102,7 @@ export default function TogetherApp() {
     let cancelled = false;
     (async () => {
       setBusy(true); setError('');
-      const tokenHash = await sha256(inviteToken);
+      const tokenHash = await sha256Hex(inviteToken);
       const { error: acceptError } = await client.rpc('accept_invitation', { p_token_hash: tokenHash });
       if (cancelled) return;
       if (acceptError) setError(acceptError.message.includes('already') ? 'Вы уже состоите в паре или приглашение использовано.' : acceptError.message);
@@ -148,8 +149,8 @@ export default function TogetherApp() {
     if (!client || !session) return;
     setBusy(true); setError(''); setNotice('');
     try {
-      const token = createInviteToken();
-      const tokenHash = await sha256(token);
+      const token = generateInviteToken();
+      const tokenHash = await sha256Hex(token);
       const { error: createError } = await client.rpc('create_couple_with_invitation', {
         p_start_date: startDate, p_token_hash: tokenHash,
       });
@@ -165,8 +166,8 @@ export default function TogetherApp() {
     if (!client || !couple) return;
     setBusy(true); setError('');
     try {
-      const token = createInviteToken();
-      const tokenHash = await sha256(token);
+      const token = generateInviteToken();
+      const tokenHash = await sha256Hex(token);
       const { error: inviteError } = await client.rpc('create_invitation', { p_couple_id: couple.id, p_token_hash: tokenHash });
       if (inviteError) throw inviteError;
       setInviteUrl(`${window.location.origin}/invite/${token}`);
