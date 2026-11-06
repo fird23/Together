@@ -30,7 +30,12 @@ export function CalendarPreview() {
       <div className="calendar-month-control"><button type="button" onClick={()=>setOffset(v=>v-1)} aria-label="Предыдущий месяц" className="calendar-nav"><ChevronLeft size={16}/></button><span>{monthName}</span><button type="button" onClick={()=>setOffset(v=>v+1)} aria-label="Следующий месяц" className="calendar-nav"><ChevronRight size={16}/></button></div>
     </div>
     <div className="calendar-grid calendar-grid-preview" aria-label={monthName}>{["Пн","Вт","Ср","Чт","Пт","Сб","Вс"].map(day=><span className="calendar-weekday" key={day}>{day}</span>)}
-      {cells.map((day,index)=>{const first=day===null?undefined:eventsOnDay(events,dayIso(day))[0];return <span key={index} className={`calendar-day ${offset===0 && day===base.getDate()?"is-today":""} ${day===null?"is-empty":""}`} title={first?.title}>{day??""}{first&&<b className="cal-dot" style={{background:colorHex(first.color)}} aria-hidden="true"/>}</span>;})}
+      {cells.map((day,index)=>{
+        const cls=`calendar-day ${offset===0 && day===base.getDate()?"is-today":""} ${day===null?"is-empty":""}`;
+        if(day===null) return <span key={index} className={cls}/>;
+        const first=eventsOnDay(events,dayIso(day))[0];
+        return <Link key={index} href={`/calendar?date=${dayIso(day)}`} className={cls} title={first?.title} aria-label={`${day} ${monthName}${first?`: ${first.title}`:""}`}>{day}{first&&<b className="cal-dot" style={{background:colorHex(first.color)}} aria-hidden="true"/>}</Link>;
+      })}
     </div>
     <Link href="/calendar" className="calendar-open-link">Открыть календарь <ArrowUpRight size={14}/></Link>
   </section>;

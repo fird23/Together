@@ -22,7 +22,6 @@ const itemClass =
 export function UserMenu() {
   const { profile, session, signOut } = useWorkspace();
   const name = profile?.display_name ?? (session?.user.user_metadata?.display_name as string | undefined) ?? "Вы";
-  const email = profile?.email || session?.user.email || "";
   const [open, setOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -77,7 +76,6 @@ export function UserMenu() {
               <Avatar name={name} src={profile?.avatar_url} size="md" />
               <div className="min-w-0">
                 <p className="truncate font-semibold">{name}</p>
-                {email && <p className="truncate text-xs text-ink-faint">{email}</p>}
               </div>
             </div>
             <div className="border-t border-sand-200 pt-2">

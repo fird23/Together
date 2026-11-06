@@ -1,10 +1,10 @@
 import { db } from "@/lib/supabase";
 import { AppError, dbError } from "@/lib/errors";
-import type { CalendarEvent, EventColor } from "@/types";
+import type { CalendarEvent, EventColor, EventRepeat } from "@/types";
 
-export type EventInput = { title: string; note: string; color: EventColor; start: string; end: string };
+export type EventInput = { title: string; note: string; color: EventColor; start: string; end: string; repeat: EventRepeat };
 
-const COLUMNS = "id,couple_id,created_by,title,note,color,start_day,end_day";
+const COLUMNS = "id,couple_id,created_by,title,note,color,start_day,end_day,repeat";
 const MIGRATION_HINT = "Календарь не готов: примените миграцию 010_calendar_events.sql.";
 
 /** Пометки, пересекающиеся с отрезком [from, to]. */
@@ -14,7 +14,7 @@ export async function listEvents(coupleId: string, from: string, to: string): Pr
     .select(COLUMNS)
     .eq("couple_id", coupleId)
     .lte("start_day", to)
-    .gte("end_day", from)
+    .or(`end_day.gte.${from},repeat.neq.none`) // повторяющиеся нужны, даже если начались давно
     .order("start_day")
     .order("created_at");
   if (error) throw new AppError(MIGRATION_HINT);
@@ -30,6 +30,7 @@ export async function createEvent(coupleId: string, userId: string, input: Event
     color: input.color,
     start_day: input.start,
     end_day: input.end,
+    repeat: input.repeat,
   });
   if (error) throw dbError(error);
 }
@@ -37,7 +38,7 @@ export async function createEvent(coupleId: string, userId: string, input: Event
 export async function updateEvent(id: string, input: EventInput) {
   const { data, error } = await db()
     .from("calendar_events")
-    .update({ title: input.title.trim(), note: input.note.trim() || null, color: input.color, start_day: input.start, end_day: input.end })
+    .update({ title: input.title.trim(), note: input.note.trim() || null, color: input.color, start_day: input.start, end_day: input.end, repeat: input.repeat })
     .eq("id", id)
     .select("id");
   if (error) throw dbError(error);

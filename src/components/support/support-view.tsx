@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Bug, HelpCircle, Lightbulb, MessageCircle, Send, type LucideIcon } from "lucide-react";
+import { Illustration } from "@/components/ui/illustrations";
 import { PageHeader } from "@/components/layout/page-header";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -125,7 +126,8 @@ export function SupportView() {
           ) : listError ? (
             <Alert tone="error">{listError}</Alert>
           ) : tickets.length === 0 ? (
-            <div className="rounded-card border border-dashed border-sand-300 px-5 py-10 text-center text-sm leading-relaxed text-ink-faint">
+            <div className="flex flex-col items-center rounded-card border border-dashed border-sand-300 px-5 py-8 text-center text-sm leading-relaxed text-ink-faint">
+              <Illustration kind="support" className="mb-2" />
               Пока пусто. Когда вы что-нибудь отправите, обращение и мой ответ появятся здесь.
             </div>
           ) : (

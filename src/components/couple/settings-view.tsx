@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { HeartHandshake, KeyRound, LifeBuoy, Palette, ShieldAlert, UserRound, type LucideIcon } from "lucide-react";
+import { Bell, HeartHandshake, KeyRound, LayoutGrid, LifeBuoy, Palette, ShieldAlert, UserRound, type LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Avatar } from "@/components/ui/avatar";
 import { ButtonLink } from "@/components/ui/button";
@@ -10,6 +11,8 @@ import { AppearanceSettings } from "@/components/couple/appearance-settings";
 import { ChangePasswordForm } from "@/components/couple/change-password-form";
 import { DissolveCouple } from "@/components/couple/dissolve-couple";
 import { DeleteAccount } from "@/components/couple/delete-account";
+import { NotificationSettings } from "@/components/couple/notification-settings";
+import { FeatureSettings } from "@/components/couple/feature-settings";
 import { EditStartDate } from "@/components/couple/edit-start-date";
 import { formatDateRu, todayISO } from "@/utils/days";
 import { cn } from "@/utils/cn";
@@ -62,11 +65,36 @@ function ActionRow({ title, text, children }: { title: string; text: string; chi
 
 export function SettingsView() {
   const { profile, partner, couple, session, memberCount } = useWorkspace();
+  const [active, setActive] = useState("appearance");
+  const hasCouple = Boolean(couple);
+
+  // Подсвечиваем в боковом меню раздел, который сейчас на экране.
+  useEffect(() => {
+    const ids = ["appearance", "notifications", ...(hasCouple ? ["features"] : []), "account", "security", "couple", "danger"];
+    const els = ids.map((id) => document.getElementById(id)).filter((el): el is HTMLElement => el !== null);
+    if (!els.length) return;
+    const visible = new Set<string>();
+    const pick = () => {
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) return setActive(ids[ids.length - 1]);
+      const first = ids.find((id) => visible.has(id));
+      if (first) setActive(first);
+    };
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => (e.isIntersecting ? visible.add(e.target.id) : visible.delete(e.target.id)));
+      pick();
+    }, { rootMargin: "-96px 0px -55% 0px" });
+    els.forEach((el) => io.observe(el));
+    window.addEventListener("scroll", pick, { passive: true });
+    return () => { io.disconnect(); window.removeEventListener("scroll", pick); };
+  }, [hasCouple]);
+
   if (!profile || !session) return null;
   const email = profile.email || session.user.email || "";
 
   const nav = [
     { id: "appearance", label: "Оформление", icon: Palette },
+    { id: "notifications", label: "Уведомления", icon: Bell },
+    ...(couple ? [{ id: "features", label: "Функции", icon: LayoutGrid }] : []),
     { id: "account", label: "Аккаунт", icon: UserRound },
     { id: "security", label: "Безопасность", icon: KeyRound },
     { id: "couple", label: "Ваша пара", icon: HeartHandshake },
@@ -78,11 +106,11 @@ export function SettingsView() {
       <PageHeader title="Настройки" description="Оформление, аккаунт и ваша пара." />
 
       <div className="grid items-start gap-6 lg:grid-cols-[13rem_minmax(0,1fr)]">
-        <nav aria-label="Разделы настроек" className="hidden lg:sticky lg:top-24 lg:block">
+        <nav aria-label="Разделы настроек" className="settings-nav hidden lg:sticky lg:top-24 lg:block">
           <ul className="space-y-1">
             {nav.map(({ id, label, icon: Icon }) => (
               <li key={id}>
-                <a href={`#${id}`} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-ink-soft transition-colors hover:bg-sand-100 hover:text-ink">
+                <a href={`#${id}`} onClick={() => setActive(id)} aria-current={active === id ? "location" : undefined} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-ink-soft transition-colors hover:bg-sand-100 hover:text-ink">
                   <Icon className="size-[18px]" aria-hidden /> {label}
                 </a>
               </li>
@@ -97,6 +125,16 @@ export function SettingsView() {
           <Section id="appearance" icon={Palette} title="Оформление" description="Режим и цветовая тема приложения.">
             <AppearanceSettings />
           </Section>
+
+          <Section id="notifications" icon={Bell} title="Уведомления" description="О чём напоминать и куда присылать. Настройки только ваши.">
+            <NotificationSettings />
+          </Section>
+
+          {couple && (
+            <Section id="features" icon={LayoutGrid} title="Функции" description="Что показывать на главной у вас двоих.">
+              <FeatureSettings />
+            </Section>
+          )}
 
           <Section id="account" icon={UserRound} title="Аккаунт" description="Так вас видит партнёр.">
             <div className="mb-5 flex items-center gap-4 rounded-2xl bg-milk p-4">

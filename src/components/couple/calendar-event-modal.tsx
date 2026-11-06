@@ -2,18 +2,18 @@
 
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { CalendarDays, Check, Trash2, Type } from "lucide-react";
+import { CalendarDays, Check, Repeat, Trash2, Type } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/field";
 import { Alert } from "@/components/ui/alert";
 import { GENERIC_ERROR } from "@/lib/errors";
-import { EVENT_COLORS } from "@/utils/calendar";
+import { EVENT_COLORS, REPEAT_LABELS } from "@/utils/calendar";
 import { daysTogether } from "@/utils/days";
-import type { EventColor } from "@/types";
+import type { EventColor, EventRepeat } from "@/types";
 import type { EventInput } from "@/services/calendar";
 
-export type EventDraft = { id?: string; title: string; note: string; color: EventColor; start: string; end: string };
+export type EventDraft = { id?: string; title: string; note: string; color: EventColor; start: string; end: string; repeat: EventRepeat };
 
 const dayCount = (a: string, b: string) => daysTogether(a, new Date(`${b}T12:00:00`)) + 1;
 
@@ -58,6 +58,7 @@ function EventForm({
   const [color, setColor] = useState<EventColor>(draft.color);
   const [start, setStart] = useState(draft.start);
   const [end, setEnd] = useState(draft.end);
+  const [repeat, setRepeat] = useState<EventRepeat>(draft.repeat);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
 
@@ -68,7 +69,7 @@ function EventForm({
     if (end < start) return setError("Дата окончания раньше даты начала.");
     setPending(true); setError("");
     try {
-      await onSave({ title, note, color, start, end }, draft.id);
+      await onSave({ title, note, color, start, end, repeat }, draft.id);
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : GENERIC_ERROR);
@@ -96,6 +97,14 @@ function EventForm({
         <TextField label="По" type="date" icon={CalendarDays} value={end} min={start} onChange={(e) => setEnd(e.target.value)} disabled={pending} />
       </div>
       {start && end && end >= start && <p className="-mt-2 text-sm text-ink-soft">{dayCount(start, end) === 1 ? "Один день" : `Дней подряд: ${dayCount(start, end)}`}</p>}
+
+      <div>
+        <label htmlFor="event-repeat" className="mb-1.5 flex items-center gap-1.5 text-sm font-medium"><Repeat className="size-4 text-ink-faint" aria-hidden /> Повтор</label>
+        <select id="event-repeat" value={repeat} onChange={(e) => setRepeat(e.target.value as EventRepeat)} disabled={pending} className="h-11 w-full rounded-control border border-sand-300 bg-paper px-3 text-ink">
+          {(Object.keys(REPEAT_LABELS) as EventRepeat[]).map((key) => <option key={key} value={key}>{REPEAT_LABELS[key]}</option>)}
+        </select>
+        {draft.id && draft.repeat !== "none" && <p className="mt-1.5 text-xs text-ink-faint">Это повторяющаяся пометка: изменения применятся ко всем повторам.</p>}
+      </div>
 
       <fieldset>
         <legend className="mb-2 text-sm font-medium">Цвет</legend>

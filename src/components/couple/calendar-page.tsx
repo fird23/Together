@@ -3,12 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import Link from "next/link";
+import { createPortal } from "react-dom";
+import { useSearchParams } from "next/navigation";
+import { Illustration } from "@/components/ui/illustrations";
 import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { CalendarEventModal, type EventDraft } from "@/components/couple/calendar-event-modal";
 import { useCalendarEvents } from "@/hooks/use-calendar-events";
 import { createEvent, deleteEvent, updateEvent, type EventInput } from "@/services/calendar";
-import { colorHex, eventsInRange, eventsOnDay } from "@/utils/calendar";
+import { colorHex, dayShift, eventsInRange, eventsOnDay } from "@/utils/calendar";
 import { addDays, pluralRu, todayISO } from "@/utils/days";
 import type { CalendarEvent } from "@/types";
 import type { CSSProperties } from "react";
@@ -26,14 +29,19 @@ const rangeLabel = (a: string, b: string) => (a === b ? shortDate(a) : `${shortD
 
 export function CalendarPage() {
   const { couple, profile } = useWorkspace();
-  const [cursor, setCursor] = useState(() => new Date());
   const today = todayISO();
-  const [anchor, setAnchor] = useState(today);
-  const [head, setHead] = useState(today);
+  // /calendar?date=2026-11-20 открывает календарь сразу на этом дне (так ведут дни с главной)
+  const dateParam = useSearchParams().get("date");
+  const initialDay = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) && !Number.isNaN(Date.parse(dateParam)) ? dateParam : null;
+  const [cursor, setCursor] = useState(() => (initialDay ? new Date(`${initialDay}T12:00:00`) : new Date()));
+  const [anchor, setAnchor] = useState(initialDay ?? today);
+  const [head, setHead] = useState(initialDay ?? today);
   const [draft, setDraft] = useState<EventDraft | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [actionError, setActionError] = useState("");
   const dragging = useRef(false);
+  const dragEvent = useRef<{ ev: CalendarEvent; from: string } | null>(null);
+  const [dropDay, setDropDay] = useState<string | null>(null);
   const press = useRef<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -49,6 +57,12 @@ export function CalendarPage() {
   const selCount = Math.round((Date.parse(selEnd) - Date.parse(selStart)) / 86_400_000) + 1;
   const monthName = new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(cursor);
   const selectedEvents = eventsInRange(events, selStart, selEnd);
+
+  // /calendar#new (кнопка «+» на телефоне) сразу открывает создание пометки на сегодня
+  useEffect(() => {
+    if (window.location.hash === "#new") setDraft({ title: "", note: "", color: "rose", start: initialDay ?? today, end: initialDay ?? today, repeat: "none" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Отпускание кнопки мыши где угодно завершает выделение.
   useEffect(() => {
@@ -81,8 +95,8 @@ export function CalendarPage() {
     setMenu({ x: Math.max(8, Math.min(x, window.innerWidth - width - 8)), y: Math.max(8, Math.min(y, window.innerHeight - height - 8)), target });
   }, []);
 
-  const openNew = (start: string, end: string) => { setMenu(null); setDraft({ title: "", note: "", color: "rose", start, end }); };
-  const openEdit = (e: CalendarEvent) => { setMenu(null); setDraft({ id: e.id, title: e.title, note: e.note ?? "", color: e.color, start: e.start_day, end: e.end_day }); };
+  const openNew = (start: string, end: string) => { setMenu(null); setDraft({ title: "", note: "", color: "rose", start, end, repeat: "none" }); };
+  const openEdit = (e: CalendarEvent) => { setMenu(null); setDraft({ id: e.id, title: e.title, note: e.note ?? "", color: e.color, start: e.series_start ?? e.start_day, end: e.series_end ?? e.end_day, repeat: e.repeat ?? "none" }); };
 
   async function save(input: EventInput, id?: string) {
     if (!couple || !profile) return;
@@ -92,8 +106,24 @@ export function CalendarPage() {
   async function remove(id: string) { await deleteEvent(id); await reload(); }
   async function removeWithConfirm(e: CalendarEvent) {
     setMenu(null); setActionError("");
-    if (!window.confirm(`Удалить пометку «${e.title}»?`)) return;
+    if (!window.confirm(e.repeat && e.repeat !== "none" ? `Удалить повторяющуюся пометку «${e.title}» целиком (все повторы)?` : `Удалить пометку «${e.title}»?`)) return;
     try { await remove(e.id); } catch (err) { setActionError(err instanceof Error ? err.message : "Не удалось удалить пометку."); }
+  }
+
+  /** Перенос пометки на другой день: сдвигает её даты (у повторяющейся сдвигается вся серия). */
+  async function moveEvent(toIso: string) {
+    const drag = dragEvent.current;
+    dragEvent.current = null;
+    setDropDay(null);
+    if (!drag || toIso === drag.from) return;
+    const { ev } = drag;
+    const delta = dayShift(drag.from, toIso);
+    if (ev.repeat && ev.repeat !== "none" && !window.confirm(`«${ev.title}» повторяется. Перенести всю серию на ${delta > 0 ? "+" : ""}${delta} дн.?`)) return;
+    setActionError("");
+    try {
+      await updateEvent(ev.id, { title: ev.title, note: ev.note ?? "", color: ev.color, start: addDays(ev.series_start ?? ev.start_day, delta), end: addDays(ev.series_end ?? ev.end_day, delta), repeat: ev.repeat ?? "none" });
+      await reload();
+    } catch (err) { setActionError(err instanceof Error ? err.message : "Не удалось перенести пометку."); }
   }
 
   function onDayPointerDown(e: ReactPointerEvent, iso: string) {
@@ -148,7 +178,7 @@ export function CalendarPage() {
           {cells.map((iso) => {
             const dayEvents = eventsOnDay(events, iso);
             const inRange = iso >= selStart && iso <= selEnd;
-            const cls = ["cal-day", iso === today && "is-today", inRange && "in-range", inRange && iso === selStart && "range-start", inRange && iso === selEnd && "range-end", Number(iso.slice(5, 7)) !== month + 1 && "is-other"].filter(Boolean).join(" ");
+            const cls = ["cal-day", iso === today && "is-today", dropDay === iso && "drop-target", inRange && "in-range", inRange && iso === selStart && "range-start", inRange && iso === selEnd && "range-end", Number(iso.slice(5, 7)) !== month + 1 && "is-other"].filter(Boolean).join(" ");
             return (
               <div
                 key={iso}
@@ -158,6 +188,8 @@ export function CalendarPage() {
                 aria-label={longDate(iso)}
                 className={cls}
                 onPointerDown={(e) => onDayPointerDown(e, iso)}
+                onDragOver={(e) => { if (dragEvent.current) { e.preventDefault(); if (dropDay !== iso) setDropDay(iso); } }}
+                onDrop={(e) => { e.preventDefault(); void moveEvent(iso); }}
                 onPointerEnter={() => onDayEnter(iso)}
                 onPointerUp={cancelPress}
                 onPointerMove={(e) => { if (e.pointerType === "touch") cancelPress(); }}
@@ -169,21 +201,25 @@ export function CalendarPage() {
                 <span className="cal-num">{Number(iso.slice(8))}</span>
                 <span className="cal-chips">
                   {dayEvents.slice(0, MAX_CHIPS).map((ev) => (
-                    <button key={ev.id} type="button" className="cal-chip" style={evStyle(colorHex(ev.color))} title={`${ev.title}${ev.start_day !== ev.end_day ? ` (${rangeLabel(ev.start_day, ev.end_day)})` : ""}`}
-                      onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openEdit(ev); }} onContextMenu={(e) => onChipContext(e, ev)}>
-                      {ev.title}
-                    </button>
+                    <div key={`${ev.id}:${ev.start_day}`} role="button" tabIndex={0} draggable className="cal-chip" style={evStyle(colorHex(ev.color))}
+                      title={`${ev.title}${ev.start_day !== ev.end_day ? ` (${rangeLabel(ev.start_day, ev.end_day)})` : ""}${ev.repeat && ev.repeat !== "none" ? " · повторяется" : ""}. Перетащите на другой день, чтобы перенести`}
+                      onDragStart={(e) => { dragEvent.current = { ev, from: iso }; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", ev.id); setMenu(null); }}
+                      onDragEnd={() => { dragEvent.current = null; setDropDay(null); }}
+                      onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openEdit(ev); }} onContextMenu={(e) => onChipContext(e, ev)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); openEdit(ev); } }}>
+                      {ev.repeat && ev.repeat !== "none" ? "↻ " : ""}{ev.title}
+                    </div>
                   ))}
                   {dayEvents.length > MAX_CHIPS && <span className="cal-more">+{dayEvents.length - MAX_CHIPS} ещё</span>}
                 </span>
                 {dayEvents.length > 0 && (
-                  <span className="cal-dots" aria-hidden="true">{dayEvents.slice(0, 4).map((ev) => <i key={ev.id} style={evStyle(colorHex(ev.color))} />)}</span>
+                  <span className="cal-dots" aria-hidden="true">{dayEvents.slice(0, 4).map((ev) => <i key={`${ev.id}:${ev.start_day}`} style={evStyle(colorHex(ev.color))} />)}</span>
                 )}
               </div>
             );
           })}
         </div>
-        <p className="cal-hint">Зажмите кнопку мыши и проведите по дням (или Shift + клик), чтобы выбрать несколько. Правая кнопка мыши (на телефоне — долгое нажатие) открывает меню, двойной клик создаёт пометку.</p>
+        <p className="cal-hint">Зажмите кнопку мыши и проведите по дням (или Shift + клик), чтобы выбрать несколько. Правая кнопка мыши (на телефоне — долгое нажатие) открывает меню, двойной клик создаёт пометку. Пометку можно перетащить на другой день, чтобы изменить дату (на телефоне — через «Изменить»).</p>
       </section>
 
       {(error || actionError) && <p role="alert" className="mt-4 rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger">{error || actionError}</p>}
@@ -197,13 +233,13 @@ export function CalendarPage() {
           <button type="button" className="cal-add" onClick={() => openNew(selStart, selEnd)}><Plus size={15} /> Добавить пометку</button>
         </div>
         {selectedEvents.length === 0 ? (
-          <p className="cal-empty">На {selCount === 1 ? "этот день" : "эти дни"} пока ничего нет.</p>
+          <div className="cal-empty"><Illustration kind="calendar" className="mx-auto h-20 w-28" /><p>На {selCount === 1 ? "этот день" : "эти дни"} пока ничего нет.</p></div>
         ) : (
           <ul className="cal-list">
             {selectedEvents.map((ev) => (
-              <li key={ev.id} style={evStyle(colorHex(ev.color))} onContextMenu={(e) => onChipContext(e, ev)}>
+              <li key={`${ev.id}:${ev.start_day}`} style={evStyle(colorHex(ev.color))} onContextMenu={(e) => onChipContext(e, ev)}>
                 <i aria-hidden="true" />
-                <div><strong>{ev.title}</strong><small>{rangeLabel(ev.start_day, ev.end_day)}{ev.note ? ` · ${ev.note}` : ""}</small></div>
+                <div><strong>{ev.title}</strong><small>{ev.repeat && ev.repeat !== "none" ? "↻ " : ""}{rangeLabel(ev.start_day, ev.end_day)}{ev.note ? ` · ${ev.note}` : ""}</small></div>
                 <span>
                   <button type="button" onClick={() => openEdit(ev)} aria-label={`Изменить ${ev.title}`}><Pencil size={14} /></button>
                   <button type="button" className="danger" onClick={() => void removeWithConfirm(ev)} aria-label={`Удалить ${ev.title}`}><Trash2 size={14} /></button>
@@ -214,7 +250,7 @@ export function CalendarPage() {
         )}
       </section>
 
-      {menu && (
+      {menu && createPortal(
         <div ref={menuRef} role="menu" className="cal-menu" style={{ left: menu.x, top: menu.y }} onContextMenu={(e) => e.preventDefault()}>
           {menu.target.kind === "day" ? (
             <>
@@ -230,7 +266,8 @@ export function CalendarPage() {
               <button role="menuitem" className="danger" onClick={() => menu.target.kind === "event" && void removeWithConfirm(menu.target.event)}><Trash2 size={15} />Удалить</button>
             </>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
 
       <CalendarEventModal draft={draft} onClose={() => setDraft(null)} onSave={save} onDelete={remove} />

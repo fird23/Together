@@ -3,12 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Flame, Pencil, Plus, Sparkles, Target, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, Flame, Heart, Pencil, Plus, Snowflake, Sparkles, Trash2 } from "lucide-react";
+import { Illustration } from "@/components/ui/illustrations";
+import { featureOn } from "@/utils/features";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { supabase } from "@/lib/supabase";
+import { useRealtime } from "@/hooks/use-realtime";
 
 type Habit = { id: string; couple_id: string; owner_id: string | null; scope: "shared" | "personal"; title: string; created_at: string };
 type Checkin = { habit_id: string; user_id: string; day: string };
+type Freeze = { habit_id: string; user_id: string; day: string };
 
 function localISO(date = new Date()) {
   const y = date.getFullYear();
@@ -17,14 +21,71 @@ function localISO(date = new Date()) {
   return `${y}-${m}-${d}`;
 }
 
-function streakFor(rows: Checkin[], habitId: string, userId: string) {
+/** Серия: дни подряд с отметкой. Замороженный день серию не рвёт, но и не растит. */
+function streakFor(rows: Checkin[], freezes: Freeze[], habitId: string, userId: string) {
   if (!userId) return 0;
-  const days = new Set(rows.filter((r) => r.habit_id === habitId && r.user_id === userId).map((r) => r.day));
+  const done = new Set(rows.filter((r) => r.habit_id === habitId && r.user_id === userId).map((r) => r.day));
+  const frozen = new Set(freezes.filter((r) => r.habit_id === habitId && r.user_id === userId).map((r) => r.day));
   const cursor = new Date(`${localISO()}T12:00:00`);
-  if (!days.has(localISO(cursor))) cursor.setDate(cursor.getDate() - 1);
+  const today = localISO(cursor);
+  if (!done.has(today) && !frozen.has(today)) cursor.setDate(cursor.getDate() - 1);
   let count = 0;
-  while (days.has(localISO(cursor))) { count++; cursor.setDate(cursor.getDate() - 1); }
+  for (;;) {
+    const iso = localISO(cursor);
+    if (done.has(iso)) count++;
+    else if (!frozen.has(iso)) break;
+    cursor.setDate(cursor.getDate() - 1);
+  }
   return count;
+}
+
+/** Общая серия пары: дни, когда оба сделали привычку (заморозка одного не рвёт серию). */
+function pairStreakFor(rows: Checkin[], freezes: Freeze[], habitId: string, a: string, b: string) {
+  const mark = (uid: string, list: { habit_id: string; user_id: string; day: string }[]) => new Set(list.filter((r) => r.habit_id === habitId && r.user_id === uid).map((r) => r.day));
+  const doneA = mark(a, rows), doneB = mark(b, rows), frA = mark(a, freezes), frB = mark(b, freezes);
+  const covered = (d: string) => (doneA.has(d) || frA.has(d)) && (doneB.has(d) || frB.has(d));
+  const cursor = new Date(`${localISO()}T12:00:00`);
+  if (!covered(localISO(cursor))) cursor.setDate(cursor.getDate() - 1);
+  let count = 0;
+  for (;;) {
+    const iso = localISO(cursor);
+    if (!covered(iso)) break;
+    if (doneA.has(iso) && doneB.has(iso)) count++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return count;
+}
+
+function lastDays(rows: Checkin[], freezes: Freeze[], habitId: string, userIds: string[], n = 14) {
+  const doneBy = (uid: string) => new Set(rows.filter((r) => r.habit_id === habitId && r.user_id === uid).map((r) => r.day));
+  const frozenBy = (uid: string) => new Set(freezes.filter((r) => r.habit_id === habitId && r.user_id === uid).map((r) => r.day));
+  const dones = userIds.map(doneBy), frozens = userIds.map(frozenBy);
+  const cursor = new Date(`${localISO()}T12:00:00`);
+  cursor.setDate(cursor.getDate() - (n - 1));
+  return Array.from({ length: n }, () => {
+    const iso = localISO(cursor);
+    cursor.setDate(cursor.getDate() + 1);
+    const done = dones.every((d) => d.has(iso));
+    const frozen = !done && dones.every((d, i) => d.has(iso) || frozens[i].has(iso));
+    return { iso, done, frozen };
+  });
+}
+const tierOf = (n: number) => (n >= 30 ? 3 : n >= 7 ? 2 : n > 0 ? 1 : 0);
+const milestoneOf = (n: number) => (n >= 100 ? "Сотня!" : n >= 30 ? "Месяц!" : n >= 7 ? "Неделя!" : "");
+
+/** Кольцо прогресса за день. */
+function ProgressRing({ done, total }: { done: number; total: number }) {
+  const r = 27, circ = 2 * Math.PI * r;
+  const frac = total ? done / total : 0;
+  return (
+    <div className={`hb-ring ${total > 0 && done === total ? "is-complete" : ""}`} role="img" aria-label={`Выполнено ${done} из ${total}`}>
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="32" cy="32" r={r} className="hb-ring-bg" />
+        <circle cx="32" cy="32" r={r} className="hb-ring-fg" strokeDasharray={circ} strokeDashoffset={circ * (1 - frac)} transform="rotate(-90 32 32)" />
+      </svg>
+      <span>{done}<small>/{total}</small></span>
+    </div>
+  );
 }
 
 const initial = (name?: string) => (name?.trim()[0] ?? "?").toUpperCase();
@@ -39,6 +100,8 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
   const { couple, profile, partner } = useWorkspace();
   const [habits, setHabits] = useState<Habit[]>([]);
   const [checkins, setCheckins] = useState<Checkin[]>([]);
+  const [freezes, setFreezes] = useState<Freeze[]>([]);
+  const [freezeReady, setFreezeReady] = useState(false);
   const [title, setTitle] = useState("");
   const [scope, setScope] = useState<"shared" | "personal">("shared");
   const [loading, setLoading] = useState(true);
@@ -47,9 +110,10 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
 
   const today = localISO();
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     if (!supabase || !couple || !profile) return;
-    setLoading(true); setError("");
+    if (!silent) setLoading(true);
+    setError("");
     const { data: habitRows, error: habitError } = await supabase.from("habits").select("*").eq("couple_id", couple.id).order("created_at", { ascending: false });
     if (habitError) { setError("Не удалось загрузить привычки. Проверьте, что применена миграция базы."); setLoading(false); return; }
     const list = (habitRows ?? []) as Habit[];
@@ -59,11 +123,17 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
       const { data: marks, error: marksError } = await supabase.from("habit_checkins").select("habit_id,user_id,day").in("habit_id", list.map((h) => h.id)).gte("day", localISO(cutoff));
       if (marksError) setError("Привычки загружены, но отметки пока недоступны.");
       setCheckins((marks ?? []) as Checkin[]);
-    } else setCheckins([]);
+      const { data: frozen, error: freezeError } = await supabase.from("habit_freezes").select("habit_id,user_id,day").in("habit_id", list.map((h) => h.id)).gte("day", localISO(cutoff));
+      setFreezeReady(!freezeError); // без миграции 015 просто не показываем заморозку
+      setFreezes(freezeError ? [] : ((frozen ?? []) as Freeze[]));
+    } else { setCheckins([]); setFreezes([]); }
     setLoading(false);
   }, [couple, profile]);
 
   useEffect(() => { void load(); }, [load]);
+  useRealtime("habits", () => load(true), { filter: couple ? `couple_id=eq.${couple.id}` : undefined, enabled: Boolean(couple) });
+  useRealtime("habit_checkins", () => load(true), { enabled: Boolean(couple) });
+  useRealtime("habit_freezes", () => load(true), { enabled: Boolean(couple) });
 
   const todayDone = useMemo(() => new Set(checkins.filter((c) => c.day === today).map((c) => `${c.habit_id}:${c.user_id}`)), [checkins, today]);
 
@@ -95,6 +165,28 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
     }
   };
 
+  const yesterday = (() => { const d = new Date(`${today}T12:00:00`); d.setDate(d.getDate() - 1); return localISO(d); })();
+  const monthKey = today.slice(0, 7);
+  const freezesLeft = (habitId: string) => 3 - freezes.filter((f) => f.habit_id === habitId && f.user_id === profile?.id && f.day.startsWith(monthKey)).length;
+
+  /** Заморозка: вчерашний пропуск или, если вчера всё в порядке, сегодняшний день. */
+  const toggleFreeze = async (habit: Habit) => {
+    if (!supabase || !profile) return;
+    setError("");
+    const mine = freezes.find((f) => f.habit_id === habit.id && f.user_id === profile.id && (f.day === today || f.day === yesterday));
+    if (mine) {
+      const { error: delError } = await supabase.from("habit_freezes").delete().eq("habit_id", habit.id).eq("user_id", profile.id).eq("day", mine.day);
+      if (delError) setError("Не удалось снять заморозку."); else await load(true);
+      return;
+    }
+    const missedYesterday = !todayDoneOn(habit.id, yesterday);
+    const day = missedYesterday ? yesterday : today;
+    const { error: insError } = await supabase.from("habit_freezes").insert({ habit_id: habit.id, user_id: profile.id, day });
+    if (insError) setError(insError.message.includes("заморозк") || insError.message.includes("Заморозить") ? insError.message : "Не удалось заморозить день.");
+    else await load(true);
+  };
+  const todayDoneOn = (habitId: string, day: string) => checkins.some((c) => c.habit_id === habitId && c.user_id === profile?.id && c.day === day);
+
   const edit = async (habit: Habit) => {
     if (!supabase) return;
     const next = window.prompt("Изменить название привычки", habit.title);
@@ -110,6 +202,16 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
   };
 
   if (!couple || !profile) return null;
+  if (!featureOn(couple, "habits")) {
+    return (
+      <div className="dashboard-card hb-off">
+        <Illustration kind="habits" className="mx-auto" />
+        <p className="mt-3 font-semibold">Привычки отключены</p>
+        <p className="mt-1 text-sm text-ink-soft">Блок выключен в настройках пары. Данные сохранены: включите его обратно, когда захотите.</p>
+        <Link href="/settings#features" className="mt-4 inline-block text-sm font-semibold text-accent-700 underline underline-offset-4">Открыть настройки</Link>
+      </div>
+    );
+  }
 
   const partnerName = partner?.display_name ?? "Партнёр";
   const shared = habits.filter((h) => h.scope === "shared");
@@ -122,14 +224,13 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
   const visibleCount = shared.length + mine.length + theirs.length;
 
   // Серии: у общих привычек — обе, у личных — только их владельца.
+  const person = (who: string, habitId: string, userId: string) => ({ who, n: streakFor(checkins, freezes, habitId, userId), days: lastDays(checkins, freezes, habitId, [userId]) });
+  const pair = (habitId: string) => ({ who: "Пара", n: pairStreakFor(checkins, freezes, habitId, profile.id, partner!.id), days: lastDays(checkins, freezes, habitId, [profile.id, partner!.id]) });
   const streaks = [
-    ...shared.map((h) => ({ id: h.id, title: h.title, items: [
-      { who: "Вы", n: streakFor(checkins, h.id, profile.id) },
-      ...(partner ? [{ who: partnerName, n: streakFor(checkins, h.id, partner.id) }] : []),
-    ] })),
-    ...mine.map((h) => ({ id: h.id, title: h.title, items: [{ who: "Вы", n: streakFor(checkins, h.id, profile.id) }] })),
-    ...theirs.map((h) => ({ id: h.id, title: h.title, items: [{ who: partnerName, n: streakFor(checkins, h.id, partner!.id) }] })),
-  ].sort((a, b) => Math.max(...b.items.map((i) => i.n)) - Math.max(...a.items.map((i) => i.n)));
+    ...shared.map((h) => ({ id: h.id, title: h.title, items: [person("Вы", h.id, profile.id), ...(partner ? [person(partnerName, h.id, partner.id), pair(h.id)] : [])] })),
+    ...mine.map((h) => ({ id: h.id, title: h.title, items: [person("Вы", h.id, profile.id)] })),
+    ...theirs.map((h) => ({ id: h.id, title: h.title, items: [person(partnerName, h.id, partner!.id)] })),
+  ].sort((x, y) => Math.max(...y.items.map((i) => i.n)) - Math.max(...x.items.map((i) => i.n)));
 
   const renderRow = (habit: Habit) => {
     const isTheirs = habit.scope === "personal" && habit.owner_id !== profile.id;
@@ -155,6 +256,18 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
             <i className={partnerDone ? "on" : ""} title={`${partnerName}: ${partnerDone ? "выполнено" : "не выполнено"}`}>{initial(partnerName)}</i>
           </span>
         )}
+        {!isTheirs && freezeReady && (() => {
+          const active = freezes.some((f) => f.habit_id === habit.id && f.user_id === profile.id && (f.day === today || f.day === yesterday));
+          const left = freezesLeft(habit.id);
+          if (!active && done && !(!todayDoneOn(habit.id, yesterday))) return null; // нечего замораживать
+          return (
+            <button type="button" className={`hb-freeze ${active ? "is-active" : ""}`} disabled={!active && left <= 0} onClick={() => void toggleFreeze(habit)}
+              title={active ? "Снять заморозку" : left > 0 ? `Заморозить день, чтобы не потерять серию (осталось ${left} из 3 в этом месяце)` : "В этом месяце заморозки закончились"}
+              aria-label={active ? "Снять заморозку" : "Заморозить день"}>
+              <Snowflake size={14} />{!active && <small>{left}</small>}
+            </button>
+          );
+        })()}
         {!isTheirs && (
           <span className="hb-actions">
             <button type="button" onClick={() => void edit(habit)} aria-label={`Изменить ${habit.title}`}><Pencil size={14} /></button>
@@ -187,15 +300,18 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
       <div className="hb-layout">
         <section className="dashboard-card hb-main" aria-label="Привычки">
           <div className="hb-progress">
-            <div><span className="hb-progress-label">Сегодня</span><strong>{doneCount}<small> / {total}</small></strong></div>
-            <div className="hb-bar" aria-hidden="true"><i style={{ width: `${total ? (doneCount / total) * 100 : 0}%` }} /></div>
+            <ProgressRing done={doneCount} total={total} />
+            <div>
+              <span className="hb-progress-label">Сегодня</span>
+              <strong>{total === 0 ? "Пока нечего отмечать" : doneCount === total ? "Всё сделано 🎉" : `Осталось: ${total - doneCount}`}</strong>
+            </div>
           </div>
 
           {loading ? (
             <p className="hb-empty">Загружаем ваши привычки…</p>
           ) : visibleCount === 0 ? (
             <div className="hb-empty">
-              <Target size={22} />
+              <Illustration kind="habits" />
               <p>Всё начинается с малого. Добавьте первую привычку — например, пить воду или гулять вместе после ужина.</p>
             </div>
           ) : (
@@ -215,21 +331,31 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
               <p className="hb-muted">Серии появятся, когда вы начнёте отмечать привычки.</p>
             ) : (
               <ul className="hb-streaks">
-                {streaks.map((s) => (
-                  <li key={s.id}>
-                    <span className="hb-streak-title">{s.title}</span>
-                    <span className="hb-streak-values">
-                      {s.items.map((i) => (
-                        <span key={i.who} className={i.n > 0 ? "active" : ""} title={`${i.who}: ${i.n} ${pluralDays(i.n)} подряд`}>
-                          {s.items.length > 1 && <b>{initial(i.who)}</b>}{i.n}
+                {streaks.map((st) => {
+                  const best = Math.max(...st.items.map((i) => i.n));
+                  const tier = tierOf(best);
+                  return (
+                    <li key={st.id}>
+                      <div className="hb-streak-top">
+                        <span className="hb-streak-title">{st.title}</span>
+                        <span className={`hb-flame tier-${tier}`} title={`Лучшая серия: ${best} ${pluralDays(best)} подряд`}>
+                          <Flame size={14} aria-hidden="true" />{best}
+                          {milestoneOf(best) && <em>{milestoneOf(best)}</em>}
                         </span>
+                      </div>
+                      {st.items.map((i) => (
+                        <div key={i.who} className="hb-strip-row" title={`${i.who}: ${i.n} ${pluralDays(i.n)} подряд`}>
+                          <b className={i.who === "Пара" ? "pair" : ""}>{i.who === "Пара" ? <Heart size={10} fill="currentColor" /> : initial(i.who)}</b>
+                          <span className="hb-strip" aria-hidden="true">{i.days.map((d) => <i key={d.iso} className={d.done ? "on" : d.frozen ? "frozen" : ""} />)}</span>
+                          <em className={i.n > 0 ? "active" : ""}>{i.n}</em>
+                        </div>
                       ))}
-                    </span>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             )}
-            <p className="hb-muted hb-caption">Серия — дни подряд без пропусков.</p>
+            <p className="hb-muted hb-caption">Серия — дни подряд без пропусков. Строка с сердцем — общая серия пары: считаются дни, когда выполнили оба. ❄ Заморозка сохраняет серию, если день пропущен: до 3 раз в месяц на привычку.</p>
           </section>
 
           <form onSubmit={createHabit} className="dashboard-card hb-card">

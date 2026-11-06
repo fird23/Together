@@ -1,0 +1,23 @@
+import type { CSSProperties } from "react";
+
+export const MOOD_HUES: Record<string, string> = {
+  great: "#E9A93B", good: "#6FAE6B", calm: "#6C8FD6", tired: "#9A82C9", sad: "#D9708E", stressed: "#D98B5B",
+};
+
+/** Свои лица настроения: одинаково выглядят на любом устройстве и красятся под тему. */
+export function MoodIcon({ mood, size = 28 }: { mood: string; size?: number }) {
+  const hue = MOOD_HUES[mood] ?? "#8B90A0";
+  const ink = { stroke: "var(--c-ink)", strokeWidth: 1.9, strokeLinecap: "round", strokeLinejoin: "round", fill: "none" } as CSSProperties;
+  const dot = { fill: "var(--c-ink)" } as CSSProperties;
+  return (
+    <svg viewBox="0 0 40 40" width={size} height={size} aria-hidden="true" focusable="false">
+      <circle cx="20" cy="20" r="18" style={{ fill: `color-mix(in srgb, ${hue} 42%, var(--c-paper))`, stroke: hue, strokeWidth: 1.5 }} />
+      {mood === "great" && (<><path d="M11.500 17q2.500-4 5 0M23.500 17q2.500-4 5 0" style={ink} /><path d="M12 23h16a8 8 0 0 1-16 0z" style={{ ...dot, stroke: "var(--c-ink)", strokeWidth: 1.5, strokeLinejoin: "round" }} /><circle cx="9.500" cy="22" r="2" style={{ fill: hue, opacity: 0.55 }} /><circle cx="30.500" cy="22" r="2" style={{ fill: hue, opacity: 0.55 }} /></>)}
+      {mood === "good" && (<><circle cx="14" cy="17" r="1.900" style={dot} /><circle cx="26" cy="17" r="1.900" style={dot} /><path d="M12.500 24q7.500 7 15 0" style={ink} /></>)}
+      {mood === "calm" && (<><path d="M11.500 18q2.500 2.500 5 0M23.500 18q2.500 2.500 5 0" style={ink} /><path d="M16 25.500q4 3 8 0" style={ink} /></>)}
+      {mood === "tired" && (<><path d="M11.500 18h5M23.500 18h5" style={ink} /><path d="M16.500 26.500h7" style={ink} /><path d="M29 7.500h5l-5 6h5" style={{ ...ink, strokeWidth: 1.600 }} /></>)}
+      {mood === "sad" && (<><circle cx="14" cy="17" r="1.900" style={dot} /><circle cx="26" cy="17" r="1.900" style={dot} /><path d="M13.500 28q6.500-6.500 13 0" style={ink} /><path d="M29 21q2.600 3.400 0 5.600-2.600-2.200 0-5.600z" style={{ fill: "#6C8FD6" }} /></>)}
+      {mood === "stressed" && (<><circle cx="14" cy="17" r="3.600" style={{ fill: "var(--c-paper)", stroke: "var(--c-ink)", strokeWidth: 1.500 }} /><circle cx="26" cy="17" r="3.600" style={{ fill: "var(--c-paper)", stroke: "var(--c-ink)", strokeWidth: 1.500 }} /><circle cx="14.500" cy="17.500" r="1.200" style={dot} /><circle cx="25.500" cy="17.500" r="1.200" style={dot} /><path d="M13 27.500q2.500-3 5 0t5 0 4 0" style={ink} /><path d="M32 8q3 4.200 0 6.400-3-2.200 0-6.400z" style={{ fill: "#6C8FD6" }} /></>)}
+    </svg>
+  );
+}

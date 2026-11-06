@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Check, Gift, Loader2, Lock, Plus, Sparkles, Trash2 } from "lucide-react";
+import { Illustration } from "@/components/ui/illustrations";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { supabase } from "@/lib/supabase";
+import { useRealtime } from "@/hooks/use-realtime";
 
 type Wish = { id: string; owner_id: string; title: string; details: string | null; created_at: string };
 
@@ -37,6 +39,7 @@ export function WishlistView() {
   }, [couple, profile]);
 
   useEffect(() => { void load(); }, [load]);
+  useRealtime("wishlist_items", load, { filter: couple ? `couple_id=eq.${couple.id}` : undefined, enabled: Boolean(couple) });
 
   const mine = items.filter((x) => x.owner_id === profile?.id);
   const theirs = items.filter((x) => x.owner_id === partner?.id);
@@ -115,7 +118,7 @@ export function WishlistView() {
       <div className="wishlist-list">
         {visible.length === 0 ? (
           <div className="wishlist-empty">
-            <Gift size={22} />
+            <Illustration kind="wishlist" />
             <p>{tab === "mine" ? "Ваш список пока пуст. Добавьте первое желание." : "У партнёра пока нет желаний в списке."}</p>
           </div>
         ) : visible.map((item) => {

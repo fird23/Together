@@ -5,17 +5,19 @@ import type { CSSProperties } from "react";
 import { Check, Loader2 } from "lucide-react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { supabase } from "@/lib/supabase";
+import { MoodIcon } from "@/components/mood/mood-icons";
+import { useRealtime } from "@/hooks/use-realtime";
 
 type Mood = { id: string; user_id: string; mood: string; note: string | null; day: string };
 
 /** hue — акцентный цвет настроения; фоны подмешиваются к теме, поэтому блок одинаково хорош в светлом и тёмном режиме. */
 const choices = [
-  { value: "great", emoji: "🤩", label: "Прекрасно", hue: "#E9A93B" },
-  { value: "good", emoji: "😊", label: "Хорошо", hue: "#6FAE6B" },
-  { value: "calm", emoji: "😌", label: "Спокойно", hue: "#6C8FD6" },
-  { value: "tired", emoji: "😴", label: "Устал(а)", hue: "#9A82C9" },
-  { value: "sad", emoji: "🥺", label: "Грустно", hue: "#D9708E" },
-  { value: "stressed", emoji: "😵‍💫", label: "Тревожно", hue: "#D98B5B" },
+  { value: "great", label: "Прекрасно", hue: "#E9A93B" },
+  { value: "good", label: "Хорошо", hue: "#6FAE6B" },
+  { value: "calm", label: "Спокойно", hue: "#6C8FD6" },
+  { value: "tired", label: "Устал(а)", hue: "#9A82C9" },
+  { value: "sad", label: "Грустно", hue: "#D9708E" },
+  { value: "stressed", label: "Тревожно", hue: "#D98B5B" },
 ];
 
 const todayISO = () => {
@@ -49,6 +51,7 @@ export function MoodSelector({ compact = false }: { compact?: boolean }) {
   }, [couple, profile, today]);
 
   useEffect(() => { void load(); }, [load]);
+  useRealtime("mood_entries", load, { filter: couple ? `couple_id=eq.${couple.id}` : undefined, enabled: Boolean(couple) });
 
   const save = async () => {
     if (!supabase || !couple || !profile || !selected) return;
@@ -72,7 +75,7 @@ export function MoodSelector({ compact = false }: { compact?: boolean }) {
     const choice = choices.find((c) => c.value === entry?.mood);
     return (
       <div className={`mood-person ${choice ? "has-mood" : ""}`} style={choice ? hueStyle(choice.hue) : undefined}>
-        <span className="mood-face" aria-hidden="true">{choice?.emoji ?? "💭"}</span>
+        <span className="mood-face" aria-hidden="true">{choice ? <MoodIcon mood={choice.value} size={30} /> : <span className="mood-face-empty">?</span>}</span>
         <span className="mood-person-copy">
           <small className="mood-person-name">{name}</small>
           <strong>{choice?.label ?? "Ещё не выбрано"}</strong>
@@ -103,7 +106,7 @@ export function MoodSelector({ compact = false }: { compact?: boolean }) {
               style={hueStyle(choice.hue)}
               className={`mood-choice ${active ? "is-selected" : ""}`}
             >
-              <span className="mood-choice-emoji" aria-hidden="true">{choice.emoji}</span>
+              <span className="mood-choice-emoji" aria-hidden="true"><MoodIcon mood={choice.value} size={26} /></span>
               <span className="mood-choice-label">{choice.label}</span>
               {active && <Check size={13} className="mood-choice-check" aria-hidden="true" />}
             </button>
