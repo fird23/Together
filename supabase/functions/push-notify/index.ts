@@ -14,7 +14,11 @@ webpush.setVapidDetails(
 
 type Payload = { title: string; body: string; url?: string; tag?: string };
 const MORNING_HOUR = 9;
+<<<<<<< HEAD
 const MOODS: Record<string, string> = { great: "🤩 Прекрасно", good: "😊 Хорошо", calm: "😌 Спокойно", tired: "😴 Без сил", sad: "🥺 Грустно", stressed: "😰 Тревожно" };
+=======
+const MOODS: Record<string, string> = { great: "🤩 Прекрасно", good: "😊 Хорошо", calm: "😌 Спокойно", tired: "😴 Устал(а)", sad: "🥺 Грустно", stressed: "😰 Тревожно" };
+>>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
 
 async function push(userId: string, payload: Payload) {
   const { data: subs } = await sb.from("push_subscriptions").select("id,endpoint,p256dh,auth").eq("user_id", userId);

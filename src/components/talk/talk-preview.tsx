@@ -11,7 +11,11 @@ import { listTalk } from "@/services/talk";
 import { cn } from "@/utils/cn";
 import type { TalkKind, TalkReply, TalkThread } from "@/types";
 
+<<<<<<< HEAD
 const KIND_LABEL: Record<TalkKind, string> = { complain: "Обидки", say: "Сказать", ask: "Спросить", suggest: "Предложить" };
+=======
+const KIND_LABEL: Record<TalkKind, string> = { complain: "Пожаловаться", say: "Сказать", ask: "Спросить", suggest: "Предложить" };
+>>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
 const LIMIT = 3;
 
 /** Главная: последние открытые обращения и те, что ждут вашего ответа. */

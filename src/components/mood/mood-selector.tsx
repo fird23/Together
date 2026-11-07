@@ -15,7 +15,11 @@ const choices = [
   { value: "great", label: "Прекрасно", hue: "#E9A93B" },
   { value: "good", label: "Хорошо", hue: "#6FAE6B" },
   { value: "calm", label: "Спокойно", hue: "#6C8FD6" },
+<<<<<<< HEAD
   { value: "tired", label: "Без сил", hue: "#9A82C9" },
+=======
+  { value: "tired", label: "Устал(а)", hue: "#9A82C9" },
+>>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
   { value: "sad", label: "Грустно", hue: "#D9708E" },
   { value: "stressed", label: "Тревожно", hue: "#D98B5B" },
 ];

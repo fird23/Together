@@ -15,7 +15,11 @@ import { cn } from "@/utils/cn";
 import type { TalkKind, TalkReply, TalkThread } from "@/types";
 
 const KINDS: { id: TalkKind; label: string; icon: LucideIcon; hint: string; quick: string[] }[] = [
+<<<<<<< HEAD
   { id: "complain", label: "Обидки", icon: CloudRain, hint: "Что вас обидело? Лучше спокойно и без обвинений…", quick: ["Слышу тебя 💜", "Прости, давай обсудим", "Спасибо, что сказал(а)"] },
+=======
+  { id: "complain", label: "Пожаловаться", icon: CloudRain, hint: "Что вас расстроило? Лучше спокойно и без обвинений…", quick: ["Слышу тебя 💜", "Прости, давай обсудим", "Спасибо, что сказал(а)"] },
+>>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
   { id: "say", label: "Сказать", icon: MessageCircle, hint: "Что хочется сказать партнёру?", quick: ["Спасибо, приятно 💜", "Я тебя тоже", "Давай поговорим об этом"] },
   { id: "ask", label: "Спросить", icon: HelpCircle, hint: "О чём хотите спросить?", quick: ["Да", "Нет", "Давай обсудим вечером"] },
   { id: "suggest", label: "Предложить", icon: Lightbulb, hint: "Что предлагаете сделать или изменить?", quick: ["Отличная идея!", "Давай попробуем", "Давай подумаем"] },
@@ -131,7 +135,11 @@ export function TalkView() {
 
   return (
     <div className="mx-auto max-w-3xl">
+<<<<<<< HEAD
       <PageHeader title="Разговоры" description="Место, где можно спокойно рассказать об обиде, сказать, спросить или предложить. Партнёр ответит, когда будет готов." />
+=======
+      <PageHeader title="Разговоры" description="Место, где можно спокойно пожаловаться, сказать, спросить или предложить. Партнёр ответит, когда будет готов." />
+>>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
 
       <form onSubmit={submit} className="mb-8 rounded-card bg-paper p-4 shadow-soft ring-1 ring-sand-200 sm:p-5">
         <fieldset>
