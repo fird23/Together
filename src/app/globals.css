@@ -812,17 +812,10 @@ button.wishlist-check:not(:disabled):hover { border-color:var(--c-accent-600); }
 
 /* ===== Узоры карточки «Мы вместе уже» ===== */
 .hero-venn { display:none; }
-<<<<<<< HEAD
 .hero-venn > div { width:650px !important; height:650px !important; }
 .hero-venn > div:first-child { background:color-mix(in srgb,var(--c-accent-200) 85%,transparent) !important; }
 .hero-venn > div:last-child { background:color-mix(in srgb,var(--c-accent-300) 55%,transparent) !important; }
 @media (max-width:640px) { .hero-venn > div { width:480px !important; height:480px !important; } }
-=======
-.hero-venn > div { width:760px !important; height:760px !important; }
-.hero-venn > div:first-child { background:color-mix(in srgb,var(--c-accent-200) 85%,transparent) !important; }
-.hero-venn > div:last-child { background:color-mix(in srgb,var(--c-accent-300) 55%,transparent) !important; }
-@media (max-width:640px) { .hero-venn > div { width:560px !important; height:560px !important; } }
->>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
 [data-patterns="off"] .hero-venn { display:block; }
 [data-patterns="off"] .dashboard-couple-card::before { display:none; }
 
@@ -1052,12 +1045,6 @@ button.wishlist-check:not(:disabled):hover { border-color:var(--c-accent-600); }
 }
 
 /* Узоры праздничных тем на карточке «Мы вместе уже» */
-<<<<<<< HEAD
-=======
-[data-theme="newyear"] .dashboard-couple-card::before { background-image: radial-gradient(circle, var(--c-sand-300) 0 1.5px, transparent 2px), radial-gradient(circle, var(--c-sand-200) 0 3px, transparent 3.5px), radial-gradient(circle, var(--c-accent-200) 0 2px, transparent 2.5px); background-size:38px 38px, 57px 57px, 71px 71px; background-position:0 0, 19px 24px, 33px 9px; }
-[data-theme="halloween"] .dashboard-couple-card::before { background-image: repeating-radial-gradient(circle at 100% 0%, transparent 0 15px, var(--c-accent-200) 16px 17px, transparent 18px 32px), repeating-radial-gradient(circle at 0% 100%, transparent 0 15px, var(--c-accent-200) 16px 17px, transparent 18px 32px); opacity:.5; }
-[data-theme="birthday"] .dashboard-couple-card::before { background-image: radial-gradient(circle, #FFC857 0 3px, transparent 3.5px), radial-gradient(circle, #6EC1E4 0 2.5px, transparent 3px), radial-gradient(circle, var(--c-accent-300) 0 3px, transparent 3.5px); background-size:46px 46px, 62px 62px, 38px 38px; background-position:0 0, 17px 23px, 29px 8px; opacity:.8; }
->>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
 
 /* ===== Фото на карточке «Мы вместе уже» ===== */
 .hero-photo { position:absolute; inset:0; background-position:center; background-size:cover; transition:filter .3s,transform .3s; }
@@ -1099,7 +1086,6 @@ button.wishlist-check:not(:disabled):hover { border-color:var(--c-accent-600); }
 .cal-day.drop-target { border-color:var(--c-accent-600); background:var(--c-accent-100); }
 .cal-chip { cursor:grab; }
 .cal-chip:active { cursor:grabbing; }
-<<<<<<< HEAD
 
 /* ===== Узоры карточки «Мы вместе уже»: рисунок в маске, цвет берётся из темы (светлая и тёмная версии) ===== */
 .dashboard-couple-card::before { background-image:none; background-color:var(--pat-a, var(--c-accent-200)); opacity:.62; -webkit-mask-repeat:repeat; mask-repeat:repeat; }
@@ -1186,5 +1172,3 @@ button.wishlist-check:not(:disabled):hover { border-color:var(--c-accent-600); }
 .todo-filters button.active { background:var(--c-accent-600); color:var(--c-on-accent); }
 .todo-sort { display:inline-flex; align-items:center; gap:6px; color:var(--c-ink-faint); }
 .todo-sort select { height:34px; padding:0 8px; border:1px solid var(--c-sand-300); border-radius:10px; background:var(--c-paper); color:var(--c-ink); font-size:13px; }
-=======
->>>>>>> e19775e761463478d9365589e97c6beb87d7e79f

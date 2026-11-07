@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-<<<<<<< HEAD
 import { ArrowDownUp, CalendarDays, Check, Pencil, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Illustration } from "@/components/ui/illustrations";
@@ -15,23 +14,12 @@ import { useWorkspace } from "@/components/providers/workspace-provider";
 import { useRealtime } from "@/hooks/use-realtime";
 import { GENERIC_ERROR } from "@/lib/errors";
 import { addTodo, listTodos, removeTodo, setTodoDone, updateTodo } from "@/services/todos";
-=======
-import { CalendarDays, Check, Plus, Trash2 } from "lucide-react";
-import { PageHeader } from "@/components/layout/page-header";
-import { Illustration } from "@/components/ui/illustrations";
-import { FeatureOff } from "@/components/ui/feature-off";
-import { useWorkspace } from "@/components/providers/workspace-provider";
-import { useRealtime } from "@/hooks/use-realtime";
-import { GENERIC_ERROR } from "@/lib/errors";
-import { addTodo, listTodos, removeTodo, setTodoDone } from "@/services/todos";
->>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
 import { addDays, todayISO } from "@/utils/days";
 import { featureOn } from "@/utils/features";
 import { cn } from "@/utils/cn";
 import type { Todo } from "@/types";
 
 type Who = "both" | "me" | "partner";
-<<<<<<< HEAD
 type Filter = "all" | Who;
 type Sort = "due" | "new" | "old" | "alpha";
 
@@ -39,9 +27,6 @@ const shortDate = (iso: string) => new Intl.DateTimeFormat("ru-RU", { day: "nume
 const SORTS: { id: Sort; label: string }[] = [
   { id: "due", label: "По сроку" }, { id: "new", label: "Сначала новые" }, { id: "old", label: "Сначала старые" }, { id: "alpha", label: "По алфавиту" },
 ];
-=======
-const shortDate = (iso: string) => new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`)).replace(".", "");
->>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
 
 export function TodosView() {
   const { couple, profile, partner } = useWorkspace();
@@ -50,17 +35,11 @@ export function TodosView() {
   const [who, setWho] = useState<Who>("both");
   const [due, setDue] = useState("");
   const [tab, setTab] = useState<"active" | "done">("active");
-<<<<<<< HEAD
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("due");
   const [editing, setEditing] = useState<Todo | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-=======
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
->>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
   const titleRef = useRef<HTMLInputElement>(null);
   const ready = Boolean(couple && profile);
   useEffect(() => { if (ready && window.location.hash === "#new") titleRef.current?.focus(); }, [ready]);
@@ -81,7 +60,6 @@ export function TodosView() {
   const tomorrow = addDays(today, 1);
   const nameOf = (id: string | null) => (id === null ? "Вместе" : id === profile.id ? "Вы" : partnerName);
   const dueLabel = (iso: string) => (iso === today ? "Сегодня" : iso === tomorrow ? "Завтра" : shortDate(iso));
-<<<<<<< HEAD
   const whoOf = (t: Todo): Who => (t.assignee_id === null ? "both" : t.assignee_id === profile.id ? "me" : "partner");
   const assigneeId = (w: Who) => (w === "both" ? null : w === "me" ? profile.id : partner?.id ?? null);
 
@@ -98,13 +76,6 @@ export function TodosView() {
   const filters: { id: Filter; label: string }[] = [
     { id: "all", label: "Все" }, { id: "me", label: "Мои" }, ...(partner ? [{ id: "partner" as Filter, label: partnerName }] : []), { id: "both", label: "Вместе" },
   ];
-=======
-
-  const all = items ?? [];
-  const active = all.filter((t) => !t.done_at).sort((a, b) => (a.due_day ?? "9999").localeCompare(b.due_day ?? "9999") || b.created_at.localeCompare(a.created_at));
-  const done = all.filter((t) => t.done_at).sort((a, b) => (b.done_at ?? "").localeCompare(a.done_at ?? ""));
-  const shown = tab === "active" ? active : done;
->>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
 
   async function run(task: () => Promise<void>) {
     setError("");
@@ -116,11 +87,7 @@ export function TodosView() {
     if (!title.trim() || !couple || !profile) return;
     setBusy(true);
     await run(async () => {
-<<<<<<< HEAD
       await addTodo({ coupleId: couple.id, userId: profile.id, title, assigneeId: assigneeId(who), dueDay: due || null });
-=======
-      await addTodo({ coupleId: couple.id, userId: profile.id, title, assigneeId: who === "both" ? null : who === "me" ? profile.id : partner?.id ?? null, dueDay: due || null });
->>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
       setTitle(""); setDue("");
     });
     setBusy(false);
@@ -131,10 +98,7 @@ export function TodosView() {
     setItems((old) => (old ?? []).map((x) => (x.id === t.id ? { ...x, done_at: nowDone ? new Date().toISOString() : null, done_by: nowDone ? profile!.id : null } : x)));
     void run(() => setTodoDone(t.id, profile!.id, nowDone));
   };
-<<<<<<< HEAD
   const remove = (t: Todo) => { if (window.confirm(`Удалить дело «${t.title}»?`)) void run(() => removeTodo(t.id)); };
-=======
->>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
   const clearDone = () => {
     if (!window.confirm(`Удалить выполненные дела (${done.length})?`)) return;
     void run(async () => { await Promise.all(done.map((t) => removeTodo(t.id))); });
@@ -155,7 +119,6 @@ export function TodosView() {
               <button type="button" key={id} role="radio" aria-checked={who === id} className={cn("px-3", who === id && "active")} onClick={() => setWho(id)}>{label}</button>
             ))}
           </div>
-<<<<<<< HEAD
           <DueDateButton value={due} onChange={setDue} />
         </div>
       </form>
@@ -169,15 +132,6 @@ export function TodosView() {
         </label>
       </div>
 
-=======
-          <label className="flex items-center gap-2 text-sm text-ink-soft">
-            <CalendarDays className="size-4" aria-hidden /> Срок
-            <input type="date" value={due} min={today} onChange={(e) => setDue(e.target.value)} className="h-9 rounded-lg border border-sand-300 bg-paper px-2 text-ink" />
-          </label>
-        </div>
-      </form>
-
->>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
       <div className="wishlist-tabs mb-4" role="tablist">
         <button role="tab" aria-selected={tab === "active"} className={tab === "active" ? "active" : ""} onClick={() => setTab("active")}>Нужно сделать <span>{active.length}</span></button>
         <button role="tab" aria-selected={tab === "done"} className={tab === "done" ? "active" : ""} onClick={() => setTab("done")}>Готово <span>{done.length}</span></button>
@@ -190,11 +144,7 @@ export function TodosView() {
       ) : shown.length === 0 ? (
         <div className="flex flex-col items-center rounded-card border border-dashed border-sand-300 px-5 py-10 text-center text-sm leading-relaxed text-ink-faint">
           <Illustration kind="todos" />
-<<<<<<< HEAD
           <p className="mt-2">{filter !== "all" ? "В этом разделе ничего нет." : tab === "active" ? "Все дела сделаны. Добавьте новое или отдохните." : "Выполненных дел пока нет."}</p>
-=======
-          <p className="mt-2">{tab === "active" ? "Все дела сделаны. Добавьте новое или отдохните." : "Выполненных дел пока нет."}</p>
->>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
         </div>
       ) : (
         <ul className="space-y-2">
@@ -213,22 +163,17 @@ export function TodosView() {
                     {t.done_at && t.done_by && <span className="text-ink-faint">Сделал(а): {nameOf(t.done_by)}</span>}
                   </p>
                 </div>
-<<<<<<< HEAD
                 <span className="hb-actions">
                   <button type="button" aria-label={`Изменить ${t.title}`} onClick={() => setEditing(t)}><Pencil size={15} /></button>
                   <button type="button" className="danger" aria-label={`Удалить ${t.title}`} onClick={() => remove(t)}><Trash2 size={15} /></button>
                 </span>
                 <RowMenu label={t.title} items={[{ label: "Изменить", icon: Pencil, onClick: () => setEditing(t) }, { label: "Удалить", icon: Trash2, danger: true, onClick: () => remove(t) }]} />
-=======
-                <span className="hb-actions"><button type="button" className="danger" aria-label={`Удалить ${t.title}`} onClick={() => void run(() => removeTodo(t.id))}><Trash2 size={15} /></button></span>
->>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
               </li>
             );
           })}
         </ul>
       )}
       {tab === "done" && done.length > 0 && <button type="button" onClick={clearDone} className="mt-4 text-sm font-medium text-ink-soft underline underline-offset-4 hover:text-danger">Очистить выполненные</button>}
-<<<<<<< HEAD
 
       <Modal open={editing !== null} onClose={() => setEditing(null)} title="Изменить дело">
         {editing && <EditForm key={editing.id} todo={editing} who={whoOf(editing)} partnerName={partnerName} hasPartner={Boolean(partner)}
@@ -262,8 +207,3 @@ function EditForm({ todo, who: initialWho, partnerName, hasPartner, onCancel, on
     </form>
   );
 }
-=======
-    </div>
-  );
-}
->>>>>>> e19775e761463478d9365589e97c6beb87d7e79f

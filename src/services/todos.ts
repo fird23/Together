@@ -24,11 +24,8 @@ export async function removeTodo(id: string) {
   const { error } = await db().from("todos").delete().eq("id", id);
   if (error) throw dbError(error);
 }
-<<<<<<< HEAD
 
 export async function updateTodo(id: string, input: { title: string; assigneeId: string | null; dueDay: string | null }) {
   const { error } = await db().from("todos").update({ title: input.title.trim(), assignee_id: input.assigneeId, due_day: input.dueDay }).eq("id", id);
   if (error) throw dbError(error);
 }
-=======
->>>>>>> e19775e761463478d9365589e97c6beb87d7e79f

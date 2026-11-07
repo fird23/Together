@@ -13,11 +13,7 @@ const optional: { key: FeatureKey; title: string; text: string; icon: LucideIcon
   { key: "habits", title: "Привычки", text: "Общие и личные привычки, серии и прогресс.", icon: Target },
   { key: "wishlist", title: "Вишлисты", text: "Списки желаний с личными отметками.", icon: Gift },
   { key: "todos", title: "Список дел", text: "Общие и личные дела со сроками.", icon: ListChecks },
-<<<<<<< HEAD
   { key: "talk", title: "Разговоры", text: "Обидки, слова, вопросы и предложения друг другу, и ответ на них.", icon: MessagesSquare },
-=======
-  { key: "talk", title: "Разговоры", text: "Пожаловаться, сказать, спросить, предложить и получить ответ.", icon: MessagesSquare },
->>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
   { key: "gratitude", title: "Благодарности", text: "Одна строка в день и банка благодарности.", icon: Heart },
   { key: "weekly", title: "Итоги недели", text: "Сводка по привычкам, делам, настроению и благодарностям.", icon: BarChart3 },
 ];

@@ -5,11 +5,8 @@ import type { FormEvent } from "react";
 import Link from "next/link";
 import { ArrowLeft, Check, Flame, Heart, Pencil, Plus, Snowflake, Sparkles, Trash2 } from "lucide-react";
 import { Illustration } from "@/components/ui/illustrations";
-<<<<<<< HEAD
 import { RowMenu } from "@/components/ui/row-menu";
 import { ConfettiBurst } from "@/components/ui/confetti";
-=======
->>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
 import { featureOn } from "@/utils/features";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { supabase } from "@/lib/supabase";
@@ -107,12 +104,9 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
   const [checkins, setCheckins] = useState<Checkin[]>([]);
   const [freezes, setFreezes] = useState<Freeze[]>([]);
   const [freezeReady, setFreezeReady] = useState(false);
-<<<<<<< HEAD
   const [celebrate, setCelebrate] = useState<{ kind: "first" | "all"; id: number } | null>(null);
   const [showAllStreaks, setShowAllStreaks] = useState(false);
   const celebrateSeq = useRef(0);
-=======
->>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
   const [title, setTitle] = useState("");
   const [scope, setScope] = useState<"shared" | "personal">("shared");
   const [loading, setLoading] = useState(true);
@@ -254,11 +248,8 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
     ...theirs.map((h) => ({ id: h.id, title: h.title, items: [person(partnerName, h.id, partner!.id)] })),
   ].sort((x, y) => Math.max(...y.items.map((i) => i.n)) - Math.max(...x.items.map((i) => i.n)));
 
-<<<<<<< HEAD
   const bestAll = streaks.reduce((m, st) => Math.max(m, ...st.items.map((i) => i.n)), 0);
 
-=======
->>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
   const renderRow = (habit: Habit) => {
     const isTheirs = habit.scope === "personal" && habit.owner_id !== profile.id;
     const owner = isTheirs ? partner : profile;
@@ -301,15 +292,12 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
             <button type="button" onClick={() => void remove(habit)} aria-label={`Удалить ${habit.title}`} className="danger"><Trash2 size={14} /></button>
           </span>
         )}
-<<<<<<< HEAD
         {!isTheirs && (
           <RowMenu label={habit.title} items={[
             { label: "Изменить", icon: Pencil, onClick: () => void edit(habit) },
             { label: "Удалить", icon: Trash2, danger: true, onClick: () => void remove(habit) },
           ]} />
         )}
-=======
->>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
       </li>
     );
   };
@@ -361,26 +349,17 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
         </section>
 
         <aside className="hb-side">
-<<<<<<< HEAD
           <section className="dashboard-card hb-card hb-streak-card" aria-label="Серии">
             <h3 className="hb-card-title"><Flame size={15} /> Серии</h3>
             <div className="hb-streak-hero">
               <span className={`hb-streak-badge tier-${tierOf(bestAll)}`}><Flame size={22} aria-hidden="true" /></span>
               <div><strong>{bestAll}</strong><small>{pluralDays(bestAll)} подряд · лучшая серия сейчас</small></div>
             </div>
-=======
-          <section className="dashboard-card hb-card" aria-label="Серии">
-            <h3 className="hb-card-title"><Flame size={15} /> Серии</h3>
->>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
             {streaks.length === 0 ? (
               <p className="hb-muted">Серии появятся, когда вы начнёте отмечать привычки.</p>
             ) : (
               <ul className="hb-streaks">
-<<<<<<< HEAD
                 {(showAllStreaks ? streaks : streaks.slice(0, 4)).map((st) => {
-=======
-                {streaks.map((st) => {
->>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
                   const best = Math.max(...st.items.map((i) => i.n));
                   const tier = tierOf(best);
                   return (
@@ -404,15 +383,11 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
                 })}
               </ul>
             )}
-<<<<<<< HEAD
             {streaks.length > 4 && <button type="button" className="hb-more-link" onClick={() => setShowAllStreaks((v) => !v)}>{showAllStreaks ? "Свернуть" : `Показать все (${streaks.length})`}</button>}
             <details className="hb-help">
               <summary>Как считаются серии</summary>
               <p>Серия — дни подряд без пропусков. Строка с сердцем — общая серия пары: считаются дни, когда выполнили оба. ❄ Заморозка сохраняет серию, если день пропущен: до 3 раз в месяц на привычку.</p>
             </details>
-=======
-            <p className="hb-muted hb-caption">Серия — дни подряд без пропусков. Строка с сердцем — общая серия пары: считаются дни, когда выполнили оба. ❄ Заморозка сохраняет серию, если день пропущен: до 3 раз в месяц на привычку.</p>
->>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
           </section>
 
           <form onSubmit={createHabit} className="dashboard-card hb-card">
@@ -427,10 +402,7 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
           </form>
         </aside>
       </div>
-<<<<<<< HEAD
       {celebrate && <ConfettiBurst key={celebrate.id} kind={celebrate.kind} onDone={() => setCelebrate(null)} />}
-=======
->>>>>>> e19775e761463478d9365589e97c6beb87d7e79f
     </div>
   );
 }
