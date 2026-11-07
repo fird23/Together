@@ -14,6 +14,7 @@ ids=${JSON.stringify(ids)},bg=${JSON.stringify(backgrounds)};
 if(ids.indexOf(t)<0)t=${JSON.stringify(DEFAULT_THEME)};
 var dark=m==="dark"||(m!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);
 var mode=dark?"dark":"light";
-d.dataset.theme=t;d.dataset.mode=mode;
+d.dataset.theme=t;d.dataset.mode=mode;
+d.dataset.patterns=localStorage.getItem("together-patterns")==="off"?"off":"on";
 var meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.setAttribute("content",bg[t][mode]);
 }catch(e){}})();`;

@@ -16,6 +16,7 @@ export function DayCounter({ days }: { days: number }) {
   useLayoutEffect(() => {
     const el = numberRef.current;
     if (!el) return;
+    el.classList.remove("counter-pop");
     el.textContent = format(days);
     if (days === 0 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
@@ -27,6 +28,7 @@ export function DayCounter({ days }: { days: number }) {
       const t = Math.min(1, (now - start) / duration);
       el.textContent = format(Math.round(days * (1 - Math.pow(1 - t, 3))));
       if (t < 1) frame = requestAnimationFrame(tick);
+      else el.classList.add("counter-pop");
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);

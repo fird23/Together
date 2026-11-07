@@ -50,6 +50,30 @@ export const THEMES = [
       "light": "#F6F2FA",
       "dark": "#171321"
     }
+  },
+  {
+    "id": "newyear",
+    "name": "Новый год ❄",
+    "bg": {
+      "light": "#F2F6FB",
+      "dark": "#0B1426"
+    }
+  },
+  {
+    "id": "halloween",
+    "name": "Хэллоуин 🎃",
+    "bg": {
+      "light": "#FBF4EA",
+      "dark": "#120D1A"
+    }
+  },
+  {
+    "id": "birthday",
+    "name": "День рождения 🎂",
+    "bg": {
+      "light": "#FFF8F0",
+      "dark": "#1D1020"
+    }
   }
 ] as const;
 
