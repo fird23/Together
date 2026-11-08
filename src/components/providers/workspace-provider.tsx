@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useRealtime } from "@/hooks/use-realtime";
 import type { Session } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { signOut as signOutService } from "@/services/auth";
@@ -135,6 +136,11 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(async () => {
     if (sessionRef.current) await load(sessionRef.current);
   }, [load]);
+
+  // Партнёр подключился или поменял настройки пары (функции, дата): подхватываем без перезагрузки.
+  const coupleId = data.couple?.id;
+  useRealtime("couples", refresh, { filter: coupleId ? `id=eq.${coupleId}` : undefined, enabled: Boolean(coupleId) });
+  useRealtime("couple_members", refresh, { filter: coupleId ? `couple_id=eq.${coupleId}` : undefined, enabled: Boolean(coupleId) });
 
   const signOut = useCallback(async () => {
     explicitSignOut.current = true; // ставим до выхода, чтобы AuthGate не увёл на /login

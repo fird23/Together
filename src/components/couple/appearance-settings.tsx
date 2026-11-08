@@ -2,6 +2,9 @@
 
 import { Check, Monitor, Moon, Sun, type LucideIcon } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
+import { usePatterns } from "@/hooks/use-patterns";
+import { Switch } from "@/components/ui/switch";
+import { HeroPhotoSettings } from "@/components/couple/hero-photo-settings";
 import { THEMES, type ModePreference } from "@/lib/themes";
 import { cn } from "@/utils/cn";
 
@@ -14,6 +17,7 @@ const modes: { id: ModePreference; label: string; icon: LucideIcon }[] = [
 /** Выбор режима (светлая / тёмная / как в системе) и цветовой темы. Настройки хранятся на этом устройстве. */
 export function AppearanceSettings() {
   const { theme, mode, resolved, setTheme, setMode } = useTheme();
+  const { on: patterns, setOn: setPatterns } = usePatterns();
 
   return (
     <div className="space-y-7">
@@ -84,6 +88,16 @@ export function AppearanceSettings() {
       </fieldset>
 
       <p className="text-sm text-ink-faint">Оформление запоминается на этом устройстве. У каждого из вас может быть своё.</p>
+
+      <div className="flex items-center justify-between gap-4 border-t border-sand-200 pt-6">
+        <div>
+          <p className="font-medium">Узоры на фоне карточки «Мы вместе уже»</p>
+          <p className="text-sm text-ink-soft">В каждой теме свой узор. Если выключить, останутся два круга, как в логотипе.</p>
+        </div>
+        <Switch checked={patterns} onChange={setPatterns} label="Узоры на фоне" />
+      </div>
+
+      <HeroPhotoSettings />
     </div>
   );
 }

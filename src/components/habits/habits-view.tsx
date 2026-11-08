@@ -1,14 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Flame, Plus, Sparkles, Trash2, Users, UserRound, Target, Pencil } from "lucide-react";
+import { ArrowLeft, BarChart3, Check, Flame, Heart, Pencil, Plus, Snowflake, Sparkles, Trash2 } from "lucide-react";
+import { Illustration } from "@/components/ui/illustrations";
+import { RowMenu } from "@/components/ui/row-menu";
+import { ConfettiBurst } from "@/components/ui/confetti";
+import { HabitDetail } from "@/components/habits/habit-detail";
+import { HabitEditModal, HabitStyleFields, emptyDraft, scheduleColumns, validateDraft, type HabitDraft } from "@/components/habits/habit-form";
+import { colorHex } from "@/utils/calendar";
+import { HabitIcon } from "@/utils/habit-icons";
+import { computePairStreak, computeStreak, dueToday, isScheduled, scheduleKind, scheduleLabel, type Schedule } from "@/utils/habit-stats";
+import type { EventColor } from "@/types";
+import { featureOn } from "@/utils/features";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { supabase } from "@/lib/supabase";
+import { useRealtime } from "@/hooks/use-realtime";
 
-type Habit = { id: string; couple_id: string; owner_id: string | null; scope: "shared" | "personal"; title: string; created_at: string };
+type Habit = {
+  id: string; couple_id: string; owner_id: string | null; scope: "shared" | "personal"; title: string; created_at: string;
+  color?: EventColor | null; icon?: string | null; week_days?: number[] | null; per_week?: number | null;
+};
 type Checkin = { habit_id: string; user_id: string; day: string };
+type Freeze = { habit_id: string; user_id: string; day: string };
 
 function localISO(date = new Date()) {
   const y = date.getFullYear();
@@ -16,29 +31,70 @@ function localISO(date = new Date()) {
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
-function streakFor(rows: Checkin[], habitId: string, userId: string) {
-  const days = new Set(rows.filter((r) => r.habit_id === habitId && r.user_id === userId).map((r) => r.day));
-  let cursor = new Date(`${localISO()}T12:00:00`);
-  if (!days.has(localISO(cursor))) cursor.setDate(cursor.getDate() - 1);
-  let count = 0;
-  while (days.has(localISO(cursor))) { count++; cursor.setDate(cursor.getDate() - 1); }
-  return count;
+
+type Strip = { iso: string; done: boolean; frozen: boolean; off: boolean };
+/** Последние n дней для ленты серии; дни вне расписания помечены как «off». */
+function daysStrip(sched: Schedule, done: Set<string>, frozen: Set<string>, n = 14): Strip[] {
+  const cursor = new Date(`${localISO()}T12:00:00`);
+  cursor.setDate(cursor.getDate() - (n - 1));
+  return Array.from({ length: n }, () => {
+    const iso = localISO(cursor);
+    cursor.setDate(cursor.getDate() + 1);
+    const isDone = done.has(iso);
+    return { iso, done: isDone, frozen: !isDone && frozen.has(iso), off: !isDone && !frozen.has(iso) && !isScheduled(sched, iso) };
+  });
 }
+const setOf = (rows: { habit_id: string; user_id: string; day: string }[], habitId: string, uid: string) =>
+  new Set(rows.filter((r) => r.habit_id === habitId && r.user_id === uid).map((r) => r.day));
+const tierOf = (n: number) => (n >= 30 ? 3 : n >= 7 ? 2 : n > 0 ? 1 : 0);
+const milestoneOf = (n: number) => (n >= 100 ? "Сотня!" : n >= 30 ? "Месяц!" : n >= 7 ? "Неделя!" : "");
+
+/** Кольцо прогресса за день. */
+function ProgressRing({ done, total }: { done: number; total: number }) {
+  const r = 27, circ = 2 * Math.PI * r;
+  const frac = total ? done / total : 0;
+  return (
+    <div className={`hb-ring ${total > 0 && done === total ? "is-complete" : ""}`} role="img" aria-label={`Выполнено ${done} из ${total}`}>
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="32" cy="32" r={r} className="hb-ring-bg" />
+        <circle cx="32" cy="32" r={r} className="hb-ring-fg" strokeDasharray={circ} strokeDashoffset={circ * (1 - frac)} transform="rotate(-90 32 32)" />
+      </svg>
+      <span>{done}<small>/{total}</small></span>
+    </div>
+  );
+}
+
+const initial = (name?: string) => (name?.trim()[0] ?? "?").toUpperCase();
+const pluralWeeks = (n: number) => { const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? "неделя" : a >= 2 && a <= 4 && (b < 12 || b > 14) ? "недели" : "недель"; };
+const pluralDays = (n: number) => {
+  const mod10 = n % 10, mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return "день";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "дня";
+  return "дней";
+};
 
 export function HabitsView({ compact = false }: { compact?: boolean }) {
   const { couple, profile, partner } = useWorkspace();
   const [habits, setHabits] = useState<Habit[]>([]);
   const [checkins, setCheckins] = useState<Checkin[]>([]);
-  const [title, setTitle] = useState("");
-  const [scope, setScope] = useState<"shared" | "personal">("shared");
+  const [freezes, setFreezes] = useState<Freeze[]>([]);
+  const [freezeReady, setFreezeReady] = useState(false);
+  const [celebrate, setCelebrate] = useState<{ kind: "first" | "all"; id: number } | null>(null);
+  const [showAllStreaks, setShowAllStreaks] = useState(false);
+  const celebrateSeq = useRef(0);
+  const [draft, setDraft] = useState<HabitDraft>(emptyDraft);
+  const [editing, setEditing] = useState<Habit | null>(null);
+  const [detail, setDetail] = useState<Habit | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const today = localISO();
-  const load = useCallback(async () => {
+
+  const load = useCallback(async (silent = false) => {
     if (!supabase || !couple || !profile) return;
-    setLoading(true); setError("");
+    if (!silent) setLoading(true);
+    setError("");
     const { data: habitRows, error: habitError } = await supabase.from("habits").select("*").eq("couple_id", couple.id).order("created_at", { ascending: false });
     if (habitError) { setError("Не удалось загрузить привычки. Проверьте, что применена миграция базы."); setLoading(false); return; }
     const list = (habitRows ?? []) as Habit[];
@@ -48,30 +104,38 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
       const { data: marks, error: marksError } = await supabase.from("habit_checkins").select("habit_id,user_id,day").in("habit_id", list.map((h) => h.id)).gte("day", localISO(cutoff));
       if (marksError) setError("Привычки загружены, но отметки пока недоступны.");
       setCheckins((marks ?? []) as Checkin[]);
-    } else setCheckins([]);
+      const { data: frozen, error: freezeError } = await supabase.from("habit_freezes").select("habit_id,user_id,day").in("habit_id", list.map((h) => h.id)).gte("day", localISO(cutoff));
+      setFreezeReady(!freezeError); // без миграции 015 просто не показываем заморозку
+      setFreezes(freezeError ? [] : ((frozen ?? []) as Freeze[]));
+    } else { setCheckins([]); setFreezes([]); }
     setLoading(false);
   }, [couple, profile]);
 
   useEffect(() => { void load(); }, [load]);
+  useRealtime("habits", () => load(true), { filter: couple ? `couple_id=eq.${couple.id}` : undefined, enabled: Boolean(couple) });
+  useRealtime("habit_checkins", () => load(true), { enabled: Boolean(couple) });
+  useRealtime("habit_freezes", () => load(true), { enabled: Boolean(couple) });
 
   const todayDone = useMemo(() => new Set(checkins.filter((c) => c.day === today).map((c) => `${c.habit_id}:${c.user_id}`)), [checkins, today]);
+
   const createHabit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!supabase || !couple || !profile || !title.trim()) return;
+    if (!supabase || !couple || !profile) return;
+    const problem = validateDraft(draft);
+    if (problem) { setError(problem); return; }
     setSaving(true); setError("");
     const { error: insertError } = await supabase.from("habits").insert({
-      couple_id: couple.id, owner_id: scope === "personal" ? profile.id : null,
-      scope, title: title.trim(),
+      couple_id: couple.id, owner_id: draft.scope === "personal" ? profile.id : null,
+      scope: draft.scope, title: draft.title.trim(), color: draft.color, icon: draft.icon, ...scheduleColumns(draft),
     });
-    if (insertError) setError(insertError.message.includes("habits") ? "Не удалось создать привычку. Примените SQL-миграцию из папки supabase/migrations." : "Не удалось создать привычку.");
-    else { setTitle(""); await load(); }
+    if (insertError) setError(/column|color|icon|week_days|per_week|schema/i.test(insertError.message) ? "Не удалось создать привычку. Примените миграцию 017_habit_style_schedule.sql." : "Не удалось создать привычку.");
+    else { setDraft(emptyDraft()); await load(); }
     setSaving(false);
   };
 
   const toggle = async (habit: Habit, userId: string) => {
     if (!supabase) return;
-    const key = `${habit.id}:${userId}`;
-    const existing = todayDone.has(key);
+    const existing = todayDone.has(`${habit.id}:${userId}`);
     setError("");
     if (existing) {
       const { error: deleteError } = await supabase.from("habit_checkins").delete().eq("habit_id", habit.id).eq("user_id", userId).eq("day", today);
@@ -80,75 +144,270 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
     } else {
       const { error: insertError } = await supabase.from("habit_checkins").insert({ habit_id: habit.id, user_id: userId, day: today });
       if (insertError) setError("Не удалось сохранить отметку.");
-      else setCheckins((old) => [...old, { habit_id: habit.id, user_id: userId, day: today }]);
+      else {
+        setCheckins((old) => [...old, { habit_id: habit.id, user_id: userId, day: today }]);
+        if (userId === profile?.id) { // праздник за ваши отметки: первая за день и последняя
+          const mineIds = habits.filter((h) => (h.scope === "shared" || h.owner_id === userId) && dueToday(h, setOf(checkins, h.id, userId), today).due).map((h) => h.id);
+          const before = mineIds.filter((id) => todayDone.has(`${id}:${userId}`)).length;
+          if (mineIds.includes(habit.id)) {
+            celebrateSeq.current += 1;
+            if (before + 1 === mineIds.length) setCelebrate({ kind: "all", id: celebrateSeq.current });
+            else if (before === 0) setCelebrate({ kind: "first", id: celebrateSeq.current });
+          }
+        }
+      }
     }
   };
 
-  const edit = async (habit: Habit) => {
+  const yesterday = (() => { const d = new Date(`${today}T12:00:00`); d.setDate(d.getDate() - 1); return localISO(d); })();
+  const monthKey = today.slice(0, 7);
+  const freezesLeft = (habitId: string) => 3 - freezes.filter((f) => f.habit_id === habitId && f.user_id === profile?.id && f.day.startsWith(monthKey)).length;
+
+  /** Заморозка: вчерашний пропуск или, если вчера всё в порядке, сегодняшний день. */
+  const toggleFreeze = async (habit: Habit) => {
+    if (!supabase || !profile) return;
+    setError("");
+    const mine = freezes.find((f) => f.habit_id === habit.id && f.user_id === profile.id && (f.day === today || f.day === yesterday));
+    if (mine) {
+      const { error: delError } = await supabase.from("habit_freezes").delete().eq("habit_id", habit.id).eq("user_id", profile.id).eq("day", mine.day);
+      if (delError) setError("Не удалось снять заморозку."); else await load(true);
+      return;
+    }
+    const missedYesterday = !todayDoneOn(habit.id, yesterday);
+    const day = missedYesterday ? yesterday : today;
+    const { error: insError } = await supabase.from("habit_freezes").insert({ habit_id: habit.id, user_id: profile.id, day });
+    if (insError) setError(insError.message.includes("заморозк") || insError.message.includes("Заморозить") ? insError.message : "Не удалось заморозить день.");
+    else await load(true);
+  };
+  const todayDoneOn = (habitId: string, day: string) => checkins.some((c) => c.habit_id === habitId && c.user_id === profile?.id && c.day === day);
+
+  const saveEdit = async (id: string, d: HabitDraft) => {
     if (!supabase) return;
-    const next = window.prompt("Изменить название привычки", habit.title);
-    if (next === null || !next.trim() || next.trim() === habit.title) return;
-    const { error: updateError } = await supabase.from("habits").update({ title: next.trim() }).eq("id", habit.id);
-    if (updateError) setError("Не удалось изменить привычку."); else await load();
+    const { error: updateError } = await supabase.from("habits").update({ title: d.title.trim(), color: d.color, icon: d.icon, ...scheduleColumns(d) }).eq("id", id);
+    if (updateError) throw new Error("update failed");
+    await load(true);
   };
 
   const remove = async (habit: Habit) => {
     if (!supabase || !window.confirm(`Удалить привычку «${habit.title}» и её историю?`)) return;
     const { error: deleteError } = await supabase.from("habits").delete().eq("id", habit.id);
-    if (deleteError) setError("Не удалось удалить привычку.");
-    else await load();
+    if (deleteError) setError("Не удалось удалить привычку."); else await load();
   };
 
   if (!couple || !profile) return null;
+  if (!featureOn(couple, "habits")) {
+    return (
+      <div className="dashboard-card hb-off">
+        <Illustration kind="habits" className="mx-auto" />
+        <p className="mt-3 font-semibold">Привычки отключены</p>
+        <p className="mt-1 text-sm text-ink-soft">Блок выключен в настройках пары. Данные сохранены: включите его обратно, когда захотите.</p>
+        <Link href="/settings#features" className="mt-4 inline-block text-sm font-semibold text-accent-700 underline underline-offset-4">Открыть настройки</Link>
+      </div>
+    );
+  }
+
+  const partnerName = partner?.display_name ?? "Партнёр";
   const shared = habits.filter((h) => h.scope === "shared");
-  const personal = habits.filter((h) => h.scope === "personal" && h.owner_id === profile.id);
-  const doneCount = shared.filter((h) => todayDone.has(`${h.id}:${profile.id}`) && (!partner || todayDone.has(`${h.id}:${partner.id}`))).length
-    + personal.filter((h) => todayDone.has(`${h.id}:${profile.id}`)).length;
-  const total = shared.length + personal.length;
+  const mine = habits.filter((h) => h.scope === "personal" && h.owner_id === profile.id);
+  const theirs = partner ? habits.filter((h) => h.scope === "personal" && h.owner_id === partner.id) : [];
+  const dueList = [...shared, ...mine].filter((h) => dueToday(h, setOf(checkins, h.id, profile.id), today).due);
+  const total = dueList.length;
+  const doneCount = dueList.filter((h) => todayDone.has(`${h.id}:${profile.id}`) && (h.scope !== "shared" || !partner || todayDone.has(`${h.id}:${partner.id}`))).length;
+  const visibleCount = shared.length + mine.length + theirs.length;
+
+  // Серии: у общих привычек — обе, у личных — только их владельца.
+  const person = (h: Habit, who: string, userId: string) => {
+    const d = setOf(checkins, h.id, userId), f = setOf(freezes, h.id, userId);
+    const st = computeStreak(h, d, f, today);
+    return { who, n: st.current, unit: st.unit, days: daysStrip(h, d, f) };
+  };
+  const pair = (h: Habit) => {
+    const da = setOf(checkins, h.id, profile.id), db = setOf(checkins, h.id, partner!.id), fa = setOf(freezes, h.id, profile.id), fb = setOf(freezes, h.id, partner!.id);
+    const both = new Set([...da].filter((d) => db.has(d)));
+    const covered = new Set([...new Set([...da, ...fa])].filter((d) => (db.has(d) || fb.has(d)) && !both.has(d)));
+    return { who: "Пара", n: computePairStreak(h, da, db, fa, fb, today), unit: "days" as "days" | "weeks", days: daysStrip(h, both, covered) };
+  };
+  const streaks = [
+    ...shared.map((h) => ({ id: h.id, title: h.title, items: [person(h, "Вы", profile.id), ...(partner ? [person(h, partnerName, partner.id), ...(scheduleKind(h) !== "count" ? [pair(h)] : [])] : [])] })),
+    ...mine.map((h) => ({ id: h.id, title: h.title, items: [person(h, "Вы", profile.id)] })),
+    ...theirs.map((h) => ({ id: h.id, title: h.title, items: [person(h, partnerName, partner!.id)] })),
+  ];
+  const weight = (st: (typeof streaks)[number]) => Math.max(...st.items.map((i) => (i.unit === "weeks" ? i.n * 7 : i.n)));
+  streaks.sort((x, y) => weight(y) - weight(x));
+  const bestAll = streaks.reduce((m, st) => Math.max(m, ...st.items.filter((i) => i.unit === "days").map((i) => i.n)), 0);
+
+  const renderRow = (habit: Habit) => {
+    const isTheirs = habit.scope === "personal" && habit.owner_id !== profile.id;
+    const owner = isTheirs ? partner : profile;
+    const done = !!owner && todayDone.has(`${habit.id}:${owner.id}`);
+    const partnerDone = !!partner && todayDone.has(`${habit.id}:${partner.id}`);
+    const ownerSet = owner ? setOf(checkins, habit.id, owner.id) : new Set<string>();
+    const due = dueToday(habit, ownerSet, today);
+    const label = scheduleLabel(habit);
+    const kind = scheduleKind(habit);
+    const note = kind === "count" ? `${label} · на этой неделе ${due.weekDone}/${habit.per_week}` : label;
+    const hue = habit.color ? colorHex(habit.color) : undefined;
+    return (
+      <li key={habit.id} className={`hb-row ${done ? "is-done" : ""} ${!due.due && !done ? "not-due" : ""}`} style={hue ? ({ "--hc": hue } as React.CSSProperties) : undefined}>
+        {isTheirs ? (
+          <span className={`hb-check is-static ${done ? "checked" : ""}`} title={done ? `${partnerName} выполнил(а) сегодня` : `${partnerName} ещё не отметил(а)`}>
+            {done && <Check size={14} />}
+          </span>
+        ) : (
+          <button type="button" onClick={() => void toggle(habit, profile.id)} aria-pressed={done}
+            aria-label={done ? `Снять отметку: ${habit.title}` : `Отметить: ${habit.title}`} className={`hb-check ${done ? "checked" : ""}`}>
+            {done && <Check size={14} />}
+          </button>
+        )}
+        <span className="hb-icon" aria-hidden="true"><HabitIcon id={habit.icon} /></span>
+        <button type="button" className="hb-title hb-title-btn" onClick={() => setDetail(habit)} aria-label={`Статистика: ${habit.title}`}>
+          <span>{habit.title}</span>
+          {(note || (!due.due && !done)) && <small>{!due.due && !done ? (kind === "count" ? "Норма недели выполнена" : "Сегодня не по расписанию") : note}</small>}
+        </button>
+        {habit.scope === "shared" && partner && (
+          <span className="hb-who" aria-label="Кто выполнил сегодня">
+            <i className={todayDone.has(`${habit.id}:${profile.id}`) ? "on" : ""} title={`Вы: ${todayDone.has(`${habit.id}:${profile.id}`) ? "выполнено" : "не выполнено"}`}>{initial(profile.display_name)}</i>
+            <i className={partnerDone ? "on" : ""} title={`${partnerName}: ${partnerDone ? "выполнено" : "не выполнено"}`}>{initial(partnerName)}</i>
+          </span>
+        )}
+        {!isTheirs && freezeReady && (() => {
+          const active = freezes.some((f) => f.habit_id === habit.id && f.user_id === profile.id && (f.day === today || f.day === yesterday));
+          const left = freezesLeft(habit.id);
+          if (!active && done && !(!todayDoneOn(habit.id, yesterday))) return null; // нечего замораживать
+          return (
+            <button type="button" className={`hb-freeze ${active ? "is-active" : ""}`} disabled={!active && left <= 0} onClick={() => void toggleFreeze(habit)}
+              title={active ? "Снять заморозку" : left > 0 ? `Заморозить день, чтобы не потерять серию (осталось ${left} из 3 в этом месяце)` : "В этом месяце заморозки закончились"}
+              aria-label={active ? "Снять заморозку" : "Заморозить день"}>
+              <Snowflake size={14} />{!active && <small>{left}</small>}
+            </button>
+          );
+        })()}
+        {!isTheirs && (
+          <span className="hb-actions">
+            <button type="button" onClick={() => setDetail(habit)} aria-label={`Статистика ${habit.title}`}><BarChart3 size={14} /></button>
+            <button type="button" onClick={() => setEditing(habit)} aria-label={`Изменить ${habit.title}`}><Pencil size={14} /></button>
+            <button type="button" onClick={() => void remove(habit)} aria-label={`Удалить ${habit.title}`} className="danger"><Trash2 size={14} /></button>
+          </span>
+        )}
+        {isTheirs && <RowMenu label={habit.title} items={[{ label: "Статистика", icon: BarChart3, onClick: () => setDetail(habit) }]} />}
+        {!isTheirs && (
+          <RowMenu label={habit.title} items={[
+            { label: "Статистика", icon: BarChart3, onClick: () => setDetail(habit) },
+            { label: "Изменить", icon: Pencil, onClick: () => setEditing(habit) },
+            { label: "Удалить", icon: Trash2, danger: true, onClick: () => void remove(habit) },
+          ]} />
+        )}
+      </li>
+    );
+  };
+
+  const groups = [
+    { key: "shared", label: "Вместе", list: shared },
+    { key: "mine", label: "Мои", list: mine },
+    { key: "theirs", label: `Личные · ${partnerName}`, list: theirs },
+  ].filter((g) => g.list.length > 0);
 
   return (
     <div className={compact ? "habits-embedded" : "mx-auto max-w-5xl"}>
-      {!compact && <Link href="/dashboard" className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-ink-soft hover:text-ink"><ArrowLeft size={16}/> На главную</Link>}
-      {!compact && <header className="mb-8 flex flex-wrap items-end justify-between gap-5">
-        <div><p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[.16em] text-accent-600"><Sparkles size={14}/> маленькие шаги каждый день</p>
+      {!compact && <Link href="/dashboard" className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-ink-soft hover:text-ink"><ArrowLeft size={16} /> На главную</Link>}
+      {!compact && (
+        <header className="mb-8">
+          <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[.16em] text-accent-600"><Sparkles size={14} /> маленькие шаги каждый день</p>
           <h1 className="font-serif text-4xl font-semibold tracking-tight sm:text-5xl">Наши привычки</h1>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-ink-soft">Поддерживайте друг друга и отмечайте маленькие победы. Здесь важна регулярность, а не идеальность.</p>
-        </div>
-        <div className="min-w-40 rounded-2xl border border-sand-200 bg-paper px-5 py-4 shadow-soft">
-          <p className="text-xs text-ink-soft">Выполнено сегодня</p><p className="mt-1 text-3xl font-semibold tabular-nums">{doneCount}<span className="text-lg text-ink-faint"> / {total}</span></p>
-        </div>
-      </header>}
-
-      {compact && <div className="mb-4 rounded-2xl border border-sand-200 bg-paper px-5 py-4 shadow-soft"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs text-ink-soft">Общий прогресс за сегодня</p><p className="mt-1 text-2xl font-semibold tabular-nums">{doneCount}<span className="text-base font-normal text-ink-faint"> / {total} привычек</span></p></div><span className="rounded-full bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700">{total ? Math.round(doneCount / total * 100) : 0}%</span></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-sand-100"><div className="h-full rounded-full bg-accent-600 transition-all" style={{ width: `${total ? doneCount / total * 100 : 0}%` }} /></div></div>}
-
-      <form onSubmit={createHabit} className="mb-8 rounded-3xl border border-sand-200 bg-paper p-5 shadow-soft sm:p-6">
-        <div className="mb-4 flex items-center gap-3"><span className="grid size-10 place-items-center rounded-2xl bg-accent-100 text-accent-700"><Plus size={20}/></span><div><h2 className="font-semibold">Добавить привычку</h2><p className="text-xs text-ink-soft">Начните с чего-то простого и приятного</p></div></div>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={70} placeholder="Например, гулять вместе 20 минут" className="h-12 min-w-0 flex-1 rounded-xl border border-sand-300 bg-milk px-4 text-sm outline-none transition focus:border-accent-600" required/>
-          <select value={scope} onChange={(e) => setScope(e.target.value as "shared" | "personal")} className="h-12 rounded-xl border border-sand-300 bg-milk px-3 text-sm">
-            <option value="shared">Общая для двоих</option><option value="personal">Моя личная</option>
-          </select>
-          <button disabled={saving || !title.trim()} className="h-12 rounded-xl bg-accent-600 px-5 text-sm font-semibold text-on-accent transition hover:bg-accent-700 disabled:opacity-50">{saving ? "Добавляем…" : "Добавить"}</button>
-        </div>
-      </form>
-
-      {error && <p role="alert" className="mb-5 rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger">{error}</p>}
-      {loading ? <div className="rounded-3xl border border-sand-200 bg-paper p-10 text-center text-sm text-ink-soft">Загружаем ваши привычки…</div> : total === 0 ? (
-        <div className="rounded-3xl border border-dashed border-sand-300 bg-paper px-6 py-14 text-center">
-          <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-accent-100 text-accent-700"><Target size={26}/></span>
-          <h2 className="mt-4 font-serif text-2xl font-semibold">Всё начинается с малого</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-ink-soft">Добавьте первую привычку — например, пить воду, читать перед сном или гулять вместе после ужина.</p>
-        </div>
-      ) : (
-        <div className="grid gap-6 lg:grid-cols-2">
-          {shared.length > 0 && <section><div className="mb-3 flex items-center gap-2"><Users size={17} className="text-accent-600"/><h2 className="font-semibold">Вместе</h2><span className="text-xs text-ink-faint">{shared.length}</span></div><div className="space-y-3">{shared.map((habit) => <article key={habit.id} className="rounded-2xl border border-sand-200 bg-paper p-4 shadow-soft">
-            <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="font-semibold">{habit.title}</h3><p className="mt-1 flex items-center gap-1 text-xs text-ink-soft"><Flame size={13}/> {streakFor(checkins, habit.id, profile.id)} дн. ваша серия · {streakFor(checkins, habit.id, partner?.id ?? "")} дн. серия партнёра</p></div><div className="flex gap-1"><button onClick={() => void edit(habit)} aria-label={`Изменить ${habit.title}`} className="rounded-lg p-2 text-ink-faint hover:bg-accent-100 hover:text-accent-700"><Pencil size={15}/></button><button onClick={() => void remove(habit)} aria-label={`Удалить ${habit.title}`} className="rounded-lg p-2 text-ink-faint hover:bg-danger-soft hover:text-danger"><Trash2 size={16}/></button></div></div>
-            <div className="mt-4 grid grid-cols-2 gap-2"><button onClick={() => void toggle(habit, profile.id)} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-semibold transition ${todayDone.has(`${habit.id}:${profile.id}`) ? "bg-success-soft text-success" : "bg-milk text-ink hover:bg-accent-100"}`}><Check size={16}/>{todayDone.has(`${habit.id}:${profile.id}`) ? "Вы отметили" : "Отметить себя"}</button>{partner && <button onClick={() => void toggle(habit, partner.id)} disabled className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-semibold ${todayDone.has(`${habit.id}:${partner.id}`) ? "bg-success-soft text-success" : "bg-milk text-ink-faint"}`}><Check size={16}/>{todayDone.has(`${habit.id}:${partner.id}`) ? "Партнёр отметил" : "Ждём партнёра"}</button>}</div>
-          </article>)}</div></section>}
-          {personal.length > 0 && <section><div className="mb-3 flex items-center gap-2"><UserRound size={17} className="text-accent-600"/><h2 className="font-semibold">Личное</h2><span className="text-xs text-ink-faint">{personal.length}</span></div><div className="space-y-3">{personal.map((habit) => <article key={habit.id} className="rounded-2xl border border-sand-200 bg-paper p-4 shadow-soft"><div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold">{habit.title}</h3><p className="mt-1 flex items-center gap-1 text-xs text-ink-soft"><Flame size={13}/> Серия: {streakFor(checkins, habit.id, profile.id)} дней</p></div><div className="flex gap-1"><button onClick={() => void edit(habit)} aria-label={`Изменить ${habit.title}`} className="rounded-lg p-2 text-ink-faint hover:bg-accent-100 hover:text-accent-700"><Pencil size={15}/></button><button onClick={() => void remove(habit)} aria-label={`Удалить ${habit.title}`} className="rounded-lg p-2 text-ink-faint hover:bg-danger-soft hover:text-danger"><Trash2 size={16}/></button></div></div><button onClick={() => void toggle(habit, profile.id)} className={`mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-semibold ${todayDone.has(`${habit.id}:${profile.id}`) ? "bg-success-soft text-success" : "bg-milk text-ink hover:bg-accent-100"}`}><Check size={16}/>{todayDone.has(`${habit.id}:${profile.id}`) ? "Сегодня выполнено" : "Отметить за сегодня"}</button></article>)}</div></section>}
-        </div>
+        </header>
       )}
-      <p className="mt-8 text-center text-xs leading-relaxed text-ink-faint">Отметки сохраняются в вашем общем пространстве. Серия считается по последовательным дням.</p>
+
+      {error && <p role="alert" className="mb-4 rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger">{error}</p>}
+
+      <div className="hb-layout">
+        <section className="dashboard-card hb-main" aria-label="Привычки">
+          <div className="hb-progress">
+            <ProgressRing done={doneCount} total={total} />
+            <div>
+              <span className="hb-progress-label">Сегодня</span>
+              <strong>{total === 0 ? "Пока нечего отмечать" : doneCount === total ? "Всё сделано 🎉" : `Осталось: ${total - doneCount}`}</strong>
+            </div>
+          </div>
+
+          {loading ? (
+            <p className="hb-empty">Загружаем ваши привычки…</p>
+          ) : visibleCount === 0 ? (
+            <div className="hb-empty">
+              <Illustration kind="habits" />
+              <p>Всё начинается с малого. Добавьте первую привычку — например, пить воду или гулять вместе после ужина.</p>
+            </div>
+          ) : (
+            groups.map((g) => (
+              <div key={g.key} className="hb-group">
+                <h3 className="hb-group-title">{g.label}<span>{g.list.length}</span></h3>
+                <ul>{g.list.map(renderRow)}</ul>
+              </div>
+            ))
+          )}
+        </section>
+
+        <aside className="hb-side">
+          <section className="dashboard-card hb-card hb-streak-card" aria-label="Серии">
+            <h3 className="hb-card-title"><Flame size={15} /> Серии</h3>
+            <div className="hb-streak-hero">
+              <span className={`hb-streak-badge tier-${tierOf(bestAll)}`}><Flame size={22} aria-hidden="true" /></span>
+              <div><strong>{bestAll}</strong><small>{pluralDays(bestAll)} подряд · лучшая серия сейчас</small></div>
+            </div>
+            {streaks.length === 0 ? (
+              <p className="hb-muted">Серии появятся, когда вы начнёте отмечать привычки.</p>
+            ) : (
+              <ul className="hb-streaks">
+                {(showAllStreaks ? streaks : streaks.slice(0, 4)).map((st) => {
+                  const best = Math.max(...st.items.map((i) => i.n));
+                  const tier = tierOf(best);
+                  return (
+                    <li key={st.id}>
+                      <div className="hb-streak-top">
+                        <span className="hb-streak-title">{st.title}</span>
+                        <span className={`hb-flame tier-${tier}`} title={`Лучшая серия: ${best} ${st.items[0].unit === "weeks" ? pluralWeeks(best) : pluralDays(best)} подряд`}>
+                          <Flame size={14} aria-hidden="true" />{best}{st.items[0].unit === "weeks" ? " нед." : ""}
+                          {st.items[0].unit === "days" && milestoneOf(best) && <em>{milestoneOf(best)}</em>}
+                        </span>
+                      </div>
+                      {st.items.map((i) => (
+                        <div key={i.who} className="hb-strip-row" title={`${i.who}: ${i.n} ${i.unit === "weeks" ? pluralWeeks(i.n) : pluralDays(i.n)} подряд`}>
+                          <b className={i.who === "Пара" ? "pair" : ""}>{i.who === "Пара" ? <Heart size={10} fill="currentColor" /> : initial(i.who)}</b>
+                          <span className="hb-strip" aria-hidden="true">{i.days.map((d) => <i key={d.iso} className={d.done ? "on" : d.frozen ? "frozen" : d.off ? "off" : ""} />)}</span>
+                          <em className={i.n > 0 ? "active" : ""}>{i.n}</em>
+                        </div>
+                      ))}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {streaks.length > 4 && <button type="button" className="hb-more-link" onClick={() => setShowAllStreaks((v) => !v)}>{showAllStreaks ? "Свернуть" : `Показать все (${streaks.length})`}</button>}
+            <details className="hb-help">
+              <summary>Как считаются серии</summary>
+              <p>Серия — дни подряд без пропусков. Строка с сердцем — общая серия пары: считаются дни, когда выполнили оба. ❄ Заморозка сохраняет серию, если день пропущен: до 3 раз в месяц на привычку.</p>
+            </details>
+          </section>
+
+          <form onSubmit={createHabit} className="dashboard-card hb-card">
+            <h3 className="hb-card-title"><Plus size={15} /> Новая привычка</h3>
+            <input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} maxLength={70} placeholder="Например, гулять вместе 20 минут" aria-label="Название привычки" className="hb-input" />
+            <div className="hb-segment" role="radiogroup" aria-label="Тип привычки">
+              <button type="button" role="radio" aria-checked={draft.scope === "shared"} className={draft.scope === "shared" ? "active" : ""} onClick={() => setDraft({ ...draft, scope: "shared" })}>Общая</button>
+              <button type="button" role="radio" aria-checked={draft.scope === "personal"} className={draft.scope === "personal" ? "active" : ""} onClick={() => setDraft({ ...draft, scope: "personal" })}>Личная</button>
+            </div>
+            <p className="hb-muted hb-caption">{draft.scope === "personal" ? "Партнёр увидит вашу привычку и серию, но отмечать её можете только вы." : "Каждый отмечает свою часть, серии считаются отдельно."}</p>
+            <details className="hf-details">
+              <summary>Цвет, иконка и расписание</summary>
+              <HabitStyleFields draft={draft} onChange={(patch) => setDraft({ ...draft, ...patch })} disabled={saving} />
+            </details>
+            <button disabled={saving || !draft.title.trim()} className="hb-submit">{saving ? "Добавляем…" : "Добавить"}</button>
+          </form>
+        </aside>
+      </div>
+      <HabitDetail habit={detail} checkins={checkins} freezes={freezes} me={{ id: profile.id, name: "Вы" }} partner={partner ? { id: partner.id, name: partnerName } : null} onClose={() => setDetail(null)} />
+      <HabitEditModal habit={editing} onClose={() => setEditing(null)} onSave={async (d) => { if (editing) await saveEdit(editing.id, d); }} />
+      {celebrate && <ConfettiBurst key={celebrate.id} kind={celebrate.kind} onDone={() => setCelebrate(null)} />}
     </div>
   );
 }

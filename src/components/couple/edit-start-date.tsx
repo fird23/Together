@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, Pencil } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/field";
@@ -17,8 +17,8 @@ export function EditStartDate({ couple }: { couple: Couple }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
-        <Pencil className="size-4" aria-hidden /> Изменить дату
+      <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>
+        Изменить
       </Button>
       <Modal
         open={open}

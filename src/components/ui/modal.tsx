@@ -9,12 +9,14 @@ export function Modal({
   onClose,
   title,
   description,
+  size = "md",
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   description?: string;
+  size?: "md" | "lg";
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -38,7 +40,7 @@ export function Modal({
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
-      className="modal m-auto w-[calc(100%-2rem)] max-w-md rounded-card bg-paper p-0 text-ink shadow-lift backdrop:bg-ink/35"
+      className={`modal m-auto w-[calc(100%-2rem)] ${size === "lg" ? "max-w-2xl" : "max-w-md"} rounded-card bg-paper p-0 text-ink shadow-lift backdrop:bg-ink/35`}
     >
       {open && (
         <div className="p-6 sm:p-7">
