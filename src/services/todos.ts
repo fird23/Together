@@ -29,3 +29,10 @@ export async function updateTodo(id: string, input: { title: string; assigneeId:
   const { error } = await db().from("todos").update({ title: input.title.trim(), assignee_id: input.assigneeId, due_day: input.dueDay, color: input.color ?? null }).eq("id", id);
   if (error) throw dbError(error);
 }
+
+/** Дела со сроком в отрезке [from, to] — для показа в календаре. */
+export async function listTodosInRange(coupleId: string, from: string, to: string): Promise<Todo[]> {
+  const { data, error } = await db().from("todos").select(COLS).eq("couple_id", coupleId).gte("due_day", from).lte("due_day", to).order("created_at", { ascending: true });
+  if (error) throw new AppError("Не удалось загрузить дела для календаря.");
+  return (data ?? []) as Todo[];
+}

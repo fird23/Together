@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Bell, HeartHandshake, Smartphone, KeyRound, LayoutGrid, LifeBuoy, Palette, ShieldAlert, UserRound, type LucideIcon } from "lucide-react";
+import { Bell, Eye, HeartHandshake, Smartphone, KeyRound, LayoutGrid, LifeBuoy, Palette, ShieldAlert, UserRound, type LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Avatar } from "@/components/ui/avatar";
 import { ButtonLink } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { DeleteAccount } from "@/components/couple/delete-account";
 import { NotificationSettings } from "@/components/couple/notification-settings";
 import { NativeAppSettings } from "@/components/native/native-app-settings";
 import { isNativeApp } from "@/lib/native";
+import { PrivacySettings } from "@/components/couple/privacy-settings";
 import { FeatureSettings } from "@/components/couple/feature-settings";
 import { EditStartDate } from "@/components/couple/edit-start-date";
 import { formatDateRu, todayISO } from "@/utils/days";
@@ -74,7 +75,7 @@ export function SettingsView() {
 
   // Подсвечиваем в боковом меню раздел, который сейчас на экране.
   useEffect(() => {
-    const ids = ["appearance", "notifications", ...(native ? ["app"] : []), ...(hasCouple ? ["features"] : []), "account", "security", "couple", "danger"];
+    const ids = ["appearance", "notifications", ...(native ? ["app"] : []), ...(hasCouple ? ["features", "privacy"] : []), "account", "security", "couple", "danger"];
     const els = ids.map((id) => document.getElementById(id)).filter((el): el is HTMLElement => el !== null);
     if (!els.length) return;
     const visible = new Set<string>();
@@ -99,7 +100,7 @@ export function SettingsView() {
     { id: "appearance", label: "Оформление", icon: Palette },
     { id: "notifications", label: "Уведомления", icon: Bell },
     ...(native ? [{ id: "app", label: "Приложение", icon: Smartphone }] : []),
-    ...(couple ? [{ id: "features", label: "Функции", icon: LayoutGrid }] : []),
+    ...(couple ? [{ id: "features", label: "Функции", icon: LayoutGrid }, { id: "privacy", label: "Приватность", icon: Eye }] : []),
     { id: "account", label: "Аккаунт", icon: UserRound },
     { id: "security", label: "Безопасность", icon: KeyRound },
     { id: "couple", label: "Ваша пара", icon: HeartHandshake },
@@ -144,6 +145,12 @@ export function SettingsView() {
           {couple && (
             <Section id="features" icon={LayoutGrid} title="Функции" description="Что показывать на главной у вас двоих.">
               <FeatureSettings />
+            </Section>
+          )}
+
+          {couple && (
+            <Section id="privacy" icon={Eye} title="Приватность" description="Что видит партнёр. Настройки только ваши.">
+              <PrivacySettings />
             </Section>
           )}
 

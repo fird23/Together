@@ -13,12 +13,15 @@ type Mood = { id: string; user_id: string; mood: string; note: string | null; da
 /** hue — акцентный цвет настроения; фоны подмешиваются к теме, поэтому блок одинаково хорош в светлом и тёмном режиме. */
 const choices = [
   { value: "great", label: "Прекрасно", hue: "#E9A93B" },
-  { value: "good", label: "Хорошо", hue: "#6FAE6B" },
+  { value: "angry", label: "Злой", hue: "#D8584E" },
   { value: "calm", label: "Спокойно", hue: "#6C8FD6" },
   { value: "tired", label: "Без сил", hue: "#9A82C9" },
   { value: "sad", label: "Грустно", hue: "#D9708E" },
   { value: "stressed", label: "Тревожно", hue: "#D98B5B" },
 ];
+
+/** Старые записи с «Хорошо» остаются в истории и показываются как раньше, но выбрать это настроение уже нельзя. */
+const legacy = [{ value: "good", label: "Хорошо", hue: "#6FAE6B" }];
 
 const todayISO = () => {
   const d = new Date();
@@ -72,7 +75,7 @@ export function MoodSelector({ compact = false }: { compact?: boolean }) {
   const unchanged = !!myEntry && myEntry.mood === selected && (myEntry.note ?? "") === note.trim();
 
   const renderPerson = (name: string, entry?: Mood) => {
-    const choice = choices.find((c) => c.value === entry?.mood);
+    const choice = [...choices, ...legacy].find((c) => c.value === entry?.mood);
     return (
       <div className={`mood-person ${choice ? "has-mood" : ""}`} style={choice ? hueStyle(choice.hue) : undefined}>
         <span className="mood-face" aria-hidden="true">{choice ? <MoodIcon mood={choice.value} size={30} /> : <span className="mood-face-empty">?</span>}</span>

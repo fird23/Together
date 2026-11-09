@@ -458,7 +458,7 @@ dialog.modal[open]::backdrop { animation: backdrop-in 0.2s ease-out; }
 .wishlist-card { padding:20px; }
 .wishlist-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .wishlist-count { display:flex; align-items:center; gap:5px; color:var(--c-accent-700); font-size:11px; font-weight:700; white-space:nowrap; }
-.wishlist-tabs { display:flex; gap:7px; margin-top:18px; padding:4px; border-radius:13px; background:var(--c-milk); }
+.wishlist-tabs { display:flex; gap:7px; padding:4px; border-radius:13px; background:var(--c-milk); }
 .wishlist-tabs button { display:flex; align-items:center; gap:7px; min-height:36px; padding:0 13px; border-radius:10px; color:var(--c-ink-soft); font-size:12px; font-weight:650; }
 .wishlist-tabs button.active { background:var(--c-paper); color:var(--c-ink); box-shadow:0 2px 8px rgb(var(--c-shadow)/.07); }
 .wishlist-tabs button span { display:grid; min-width:19px; height:19px; place-items:center; padding:0 5px; border-radius:99px; background:var(--c-sand-100); font-size:10px; }
@@ -1263,3 +1263,61 @@ button.wishlist-check:not(:disabled):hover { border-color:var(--c-accent-600); }
 .memories-moods span { display:inline-flex; align-items:center; gap:7px; font-size:13px; color:var(--c-ink-soft); }
 .memories-text, .memories-event { margin:4px 0 0; overflow-wrap:anywhere; font-size:14px; line-height:1.5; }
 .memories-event { color:var(--c-ink-soft); }
+
+/* ---- Вишлисты: форма, ссылка, фото, кнопки ---- */
+.wishlist-form { display:flex; flex-direction:column; gap:8px; margin-top:13px; min-width:0; width:100%; }
+.wishlist-form > input { width:100%; min-width:0; height:42px; padding:0 12px; border:1px solid var(--c-sand-200); border-radius:11px; background:var(--c-milk); color:var(--c-ink); font-size:16px; outline:none; }
+.wishlist-form > input:focus { border-color:var(--c-accent-600); }
+.wishlist-form-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.wishlist-submit { display:inline-flex; height:40px; align-items:center; justify-content:center; gap:6px; padding:0 16px; border-radius:11px; background:var(--c-accent-600); color:var(--c-on-accent); font-size:13px; font-weight:700; white-space:nowrap; }
+.wishlist-submit:disabled { opacity:.5; }
+.wishlist-cancel { height:40px; padding:0 12px; border-radius:11px; color:var(--c-ink-soft); font-size:13px; font-weight:650; }
+.wishlist-cancel:hover { background:var(--c-sand-100); }
+.wishlist-item.is-editing { display:block; padding:0 11px 11px; }
+.wishlist-item.is-editing .wishlist-form { margin-top:11px; }
+.wishlist-item { align-items:flex-start; }
+.wishlist-actions { display:flex; flex-shrink:0; gap:2px; }
+.wishlist-actions button { display:grid; width:34px; height:34px; place-items:center; border-radius:9px; color:var(--c-ink-faint); }
+.wishlist-actions button:hover { background:var(--c-sand-100); color:var(--c-accent-700); }
+.wishlist-actions .wishlist-delete:hover { color:var(--c-danger); }
+.wishlist-link { display:inline-flex; width:fit-content; max-width:100%; align-items:center; gap:5px; margin-top:2px; padding:4px 9px; border-radius:999px; background:var(--c-accent-100); color:var(--c-accent-700); font-size:11px; font-weight:650; text-decoration:none; }
+.wishlist-link span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.wishlist-photo { display:block; width:fit-content; max-width:100%; margin-top:4px; }
+.wishlist-photo img { display:block; max-width:100%; max-height:180px; border-radius:12px; object-fit:cover; box-shadow:0 0 0 1px var(--c-sand-200); }
+@media (max-width:640px) { .wishlist-form-actions .wishlist-submit { flex:1; } }
+
+/* ---- Календарь: дела, свайп, телефон ---- */
+.cal-chip-todo { border-left-style:dashed; background:transparent; box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ev) 45%,transparent); cursor:pointer; }
+.cal-chip-todo:hover { background:color-mix(in srgb,var(--ev) 14%,var(--c-paper)); }
+.cal-chip-todo.is-done { opacity:.6; text-decoration:line-through; }
+.cal-dots i.is-todo { background:transparent; box-shadow:inset 0 0 0 1.5px var(--ev); }
+.cal-todo-row.is-done strong { text-decoration:line-through; opacity:.65; }
+.cal-todo-row { border-left-style:dashed; }
+.cal-todo-check { display:grid; width:26px; height:26px; flex-shrink:0; place-items:center; border:2px solid var(--ev); border-radius:8px; color:var(--c-on-accent); }
+.cal-todo-check.checked { background:var(--ev); }
+.cal-range-banner { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0 0 12px; padding:9px 12px; border-radius:12px; background:var(--c-accent-100); color:var(--c-accent-700); font-size:13px; font-weight:650; }
+.cal-range-banner button { padding:5px 10px; border-radius:9px; background:var(--c-paper); color:var(--c-ink-soft); font-size:12px; font-weight:700; }
+.cal-hint-touch { display:none; }
+.calendar-full-grid { touch-action:pan-y; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+@keyframes cal-in-next { from { opacity:0; transform:translateX(26px); } to { opacity:1; transform:none; } }
+@keyframes cal-in-prev { from { opacity:0; transform:translateX(-26px); } to { opacity:1; transform:none; } }
+.calendar-full-grid.cal-slide-next { animation:cal-in-next .22s ease-out; }
+.calendar-full-grid.cal-slide-prev { animation:cal-in-prev .22s ease-out; }
+@media (prefers-reduced-motion: reduce) { .calendar-full-grid.cal-slide-next, .calendar-full-grid.cal-slide-prev { animation:none; } }
+@media (hover:none), (max-width:640px) {
+  .cal-hint-desktop { display:none; }
+  .cal-hint-touch { display:block; }
+  .calendar-full-toolbar { flex-wrap:wrap; }
+  .calendar-full-toolbar h2 { order:-1; width:100%; min-width:0; margin-bottom:4px; }
+  .calendar-nav { width:40px; height:40px; }
+  .calendar-today { min-height:40px; padding:0 14px; }
+  .calendar-full-weekday { padding:6px 0; }
+  .cal-day { min-height:58px; padding:5px 2px 4px; }
+  .cal-num { min-width:28px; height:28px; font-size:13px; }
+  .cal-dots { max-width:100%; }
+  .cal-selected { padding:14px; }
+  .cal-add { width:100%; justify-content:center; height:44px; }
+  .cal-list li > span button { width:40px; height:40px; }
+  .cal-menu { width:min(260px, calc(100vw - 16px)); }
+  .cal-menu button { padding:12px 10px; }
+}
