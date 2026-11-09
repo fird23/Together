@@ -45,7 +45,7 @@ export function HeroPhotoSettings() {
         </div>
       </div>
       <div className="mt-5 flex items-center justify-between gap-4">
-        <div><p className="font-medium">Размытие фона</p><p className="text-sm text-ink-soft">Мягкое размытие делает текст на карточке читаемее.</p></div>
+        <div className="min-w-0"><p className="font-medium">Размытие фона</p><p className="text-sm text-ink-soft">Мягкое размытие делает текст на карточке читаемее.</p></div>
         <Switch checked={blur} onChange={(v) => void run(() => setHeroBlur(couple.id, v))} disabled={!hasPhoto || busy} label="Размытие фона" />
       </div>
       {error && <Alert tone="error" className="mt-3">{error}</Alert>}

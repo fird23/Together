@@ -3,28 +3,22 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { Home, CalendarDays, Target, ListChecks, MessagesSquare, Plus, type LucideIcon } from "lucide-react";
+import { Plus } from "lucide-react";
 import { QuickActions } from "@/components/layout/quick-actions";
 import { useWorkspace } from "@/components/providers/workspace-provider";
-import { featureOn, type FeatureKey } from "@/utils/features";
+import { useNavConfig } from "@/hooks/use-nav-config";
+import { DESKTOP_NAV_IDS, NAV_DEFS, type NavDef } from "@/lib/nav-items";
+import { featureOn } from "@/utils/features";
 import { cn } from "@/utils/cn";
 
-const items: { href: string; label: string; icon: LucideIcon; feature?: FeatureKey }[] = [
-  { href: "/dashboard", label: "Главная", icon: Home },
-  { href: "/habits", label: "Привычки", icon: Target, feature: "habits" },
-  { href: "/todos", label: "Дела", icon: ListChecks, feature: "todos" },
-  { href: "/talk", label: "Разговоры", icon: MessagesSquare, feature: "talk" },
-  { href: "/calendar", label: "Календарь", icon: CalendarDays },
-];
-
-function useNavItems() {
+function useNavItems(ids: readonly (keyof typeof NAV_DEFS)[]): NavDef[] {
   const { couple } = useWorkspace();
-  return items.filter((item) => !item.feature || featureOn(couple, item.feature));
+  return ids.map((id) => NAV_DEFS[id]).filter((item) => !item.feature || featureOn(couple, item.feature));
 }
 
 export function DesktopNav() {
   const pathname = usePathname();
-  const items = useNavItems();
+  const items = useNavItems(DESKTOP_NAV_IDS);
   return (
     <nav aria-label="Основная навигация" className="hidden items-center gap-1 md:flex">
       {items.map(({ href, label, icon: Icon }) => {
@@ -52,17 +46,18 @@ export function DesktopNav() {
 
 export function MobileNav() {
   const pathname = usePathname();
-  const all = useNavItems();
+  const config = useNavConfig();
+  const visible = useNavItems(config.items);
   const [quick, setQuick] = useState(false);
-  // На телефоне: два раздела слева, «+» по центру и два справа. «Привычки» открываются через «+» и с главной.
-  const side = all.filter((i) => i.href !== "/habits");
-  const left = side.filter((i) => i.href === "/dashboard" || i.href === "/calendar");
-  const right = side.filter((i) => i.href === "/todos" || i.href === "/talk");
+  // Состав и порядок задаются в настройках («Нижняя панель»). С «+» он стоит по центру, остальные делятся по сторонам.
+  const split = config.plus ? Math.ceil(visible.length / 2) : visible.length;
+  const left = visible.slice(0, split);
+  const right = visible.slice(split);
 
-  const renderItem = ({ href, label, icon: Icon }: (typeof items)[number]) => {
+  const renderItem = ({ href, label, icon: Icon }: NavDef) => {
     const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`));
     return (
-      <li key={href} className="flex-1">
+      <li key={href} className="min-w-0 flex-1">
         <Link
           href={href}
           aria-current={active ? "page" : undefined}
@@ -71,7 +66,7 @@ export function MobileNav() {
           <span className={cn("grid h-7 w-12 place-items-center rounded-full transition-colors", active && "bg-accent-100")}>
             <Icon className="size-5" aria-hidden />
           </span>
-          {label}
+          <span className="max-w-full truncate px-0.5">{label}</span>
         </Link>
       </li>
     );
@@ -85,7 +80,7 @@ export function MobileNav() {
       >
         <ul className="flex items-end">
           {left.map(renderItem)}
-          <li className="flex flex-1 justify-center">
+          {config.plus && <li className="flex flex-1 justify-center">
             <button
               type="button"
               onClick={() => setQuick(true)}
@@ -95,11 +90,11 @@ export function MobileNav() {
             >
               <Plus className="size-7" aria-hidden />
             </button>
-          </li>
+          </li>}
           {right.map(renderItem)}
         </ul>
       </nav>
-      <QuickActions open={quick} onClose={() => setQuick(false)} />
+      {config.plus && <QuickActions open={quick} onClose={() => setQuick(false)} />}
     </>
   );
 }

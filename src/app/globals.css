@@ -1321,3 +1321,7 @@ button.wishlist-check:not(:disabled):hover { border-color:var(--c-accent-600); }
   .cal-menu { width:min(260px, calc(100vw - 16px)); }
   .cal-menu button { padding:12px 10px; }
 }
+
+/* ---- Настройки на телефоне ---- */
+.settings-chips { scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+.settings-chips::-webkit-scrollbar { display:none; }

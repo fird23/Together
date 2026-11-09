@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Bell, Eye, HeartHandshake, Smartphone, KeyRound, LayoutGrid, LifeBuoy, Palette, ShieldAlert, UserRound, type LucideIcon } from "lucide-react";
+import { Bell, Eye, HeartHandshake, PanelBottom, Smartphone, KeyRound, LayoutGrid, LifeBuoy, Palette, ShieldAlert, UserRound, type LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Avatar } from "@/components/ui/avatar";
 import { ButtonLink } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { DeleteAccount } from "@/components/couple/delete-account";
 import { NotificationSettings } from "@/components/couple/notification-settings";
 import { NativeAppSettings } from "@/components/native/native-app-settings";
 import { isNativeApp } from "@/lib/native";
+import { BottomNavSettings } from "@/components/couple/bottom-nav-settings";
 import { PrivacySettings } from "@/components/couple/privacy-settings";
 import { FeatureSettings } from "@/components/couple/feature-settings";
 import { EditStartDate } from "@/components/couple/edit-start-date";
@@ -29,14 +30,14 @@ function Section({
     <section
       id={id}
       aria-labelledby={`${id}-title`}
-      className={cn("scroll-mt-24 rounded-card p-5 shadow-soft ring-1 sm:p-6", tone === "danger" ? "bg-danger-soft/50 ring-danger/20" : "bg-paper ring-sand-200")}
+      className={cn("scroll-mt-36 rounded-card p-4 shadow-soft ring-1 sm:p-6 lg:scroll-mt-24", tone === "danger" ? "bg-danger-soft/50 ring-danger/20" : "bg-paper ring-sand-200")}
     >
-      <header className="mb-5 flex items-start gap-3.5">
-        <span className={cn("grid size-10 shrink-0 place-items-center rounded-2xl", tone === "danger" ? "bg-danger-soft text-danger" : "bg-accent-100 text-accent-700")}>
+      <header className="mb-4 flex items-start gap-3 sm:mb-5 sm:gap-3.5">
+        <span className={cn("grid size-9 shrink-0 place-items-center rounded-2xl sm:size-10", tone === "danger" ? "bg-danger-soft text-danger" : "bg-accent-100 text-accent-700")}>
           <Icon className="size-5" aria-hidden />
         </span>
         <div>
-          <h2 id={`${id}-title`} className={cn("font-serif text-xl font-semibold", tone === "danger" && "text-danger")}>{title}</h2>
+          <h2 id={`${id}-title`} className={cn("font-serif text-lg font-semibold sm:text-xl", tone === "danger" && "text-danger")}>{title}</h2>
           {description && <p className="mt-0.5 text-sm text-ink-soft">{description}</p>}
         </div>
       </header>
@@ -47,9 +48,9 @@ function Section({
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 border-b border-sand-100 py-3 first:pt-0 last:border-0 last:pb-0">
+    <div className="flex flex-col gap-y-1 border-b border-sand-100 py-3 first:pt-0 last:border-0 last:pb-0 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-6">
       <dt className="text-ink-soft">{label}</dt>
-      <dd className="flex items-center gap-3 font-medium">{children}</dd>
+      <dd className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 font-medium [overflow-wrap:anywhere]">{children}</dd>
     </div>
   );
 }
@@ -75,7 +76,7 @@ export function SettingsView() {
 
   // Подсвечиваем в боковом меню раздел, который сейчас на экране.
   useEffect(() => {
-    const ids = ["appearance", "notifications", ...(native ? ["app"] : []), ...(hasCouple ? ["features", "privacy"] : []), "account", "security", "couple", "danger"];
+    const ids = ["appearance", "bottomnav", "notifications", ...(native ? ["app"] : []), ...(hasCouple ? ["features", "privacy"] : []), "account", "security", "couple", "danger"];
     const els = ids.map((id) => document.getElementById(id)).filter((el): el is HTMLElement => el !== null);
     if (!els.length) return;
     const visible = new Set<string>();
@@ -98,6 +99,7 @@ export function SettingsView() {
 
   const nav = [
     { id: "appearance", label: "Оформление", icon: Palette },
+    { id: "bottomnav", label: "Нижняя панель", icon: PanelBottom },
     { id: "notifications", label: "Уведомления", icon: Bell },
     ...(native ? [{ id: "app", label: "Приложение", icon: Smartphone }] : []),
     ...(couple ? [{ id: "features", label: "Функции", icon: LayoutGrid }, { id: "privacy", label: "Приватность", icon: Eye }] : []),
@@ -110,6 +112,20 @@ export function SettingsView() {
   return (
     <div>
       <PageHeader title="Настройки" description="Оформление, аккаунт и ваша пара." />
+
+      {/* Телефон и планшет: разделы в горизонтальной ленте под шапкой, чтобы не листать всю страницу */}
+      <nav aria-label="Разделы настроек" className="settings-chips sticky top-16 z-10 -mx-5 mb-4 overflow-x-auto border-b border-sand-200 bg-milk/90 px-5 py-2 backdrop-blur lg:hidden">
+        <ul className="flex w-max gap-2">
+          {nav.map(({ id, label, icon: Icon }) => (
+            <li key={id}>
+              <a href={`#${id}`} onClick={() => setActive(id)} aria-current={active === id ? "location" : undefined}
+                className={cn("inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-full px-3.5 text-sm font-medium transition-colors", active === id ? "bg-accent-100 text-accent-700" : "bg-sand-100 text-ink-soft")}>
+                <Icon className="size-4" aria-hidden />{label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
 
       <div className="grid items-start gap-6 lg:grid-cols-[13rem_minmax(0,1fr)]">
         <nav aria-label="Разделы настроек" className="settings-nav hidden lg:sticky lg:top-24 lg:block">
@@ -130,6 +146,10 @@ export function SettingsView() {
         <div className="max-w-3xl space-y-5">
           <Section id="appearance" icon={Palette} title="Оформление" description="Режим и цветовая тема приложения.">
             <AppearanceSettings />
+          </Section>
+
+          <Section id="bottomnav" icon={PanelBottom} title="Нижняя панель" description="Какие разделы и в каком порядке показывать внизу на телефоне.">
+            <BottomNavSettings />
           </Section>
 
           <Section id="notifications" icon={Bell} title="Уведомления" description="О чём напоминать и куда присылать. Настройки только ваши.">
@@ -155,7 +175,7 @@ export function SettingsView() {
           )}
 
           <Section id="account" icon={UserRound} title="Аккаунт" description="Так вас видит партнёр.">
-            <div className="mb-5 flex items-center gap-4 rounded-2xl bg-milk p-4">
+            <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-2xl bg-milk p-4">
               <Avatar name={profile.display_name} src={profile.avatar_url} size="md" />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">{profile.display_name}</p>

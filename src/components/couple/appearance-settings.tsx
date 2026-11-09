@@ -90,7 +90,7 @@ export function AppearanceSettings() {
       <p className="text-sm text-ink-faint">Оформление запоминается на этом устройстве. У каждого из вас может быть своё.</p>
 
       <div className="flex items-center justify-between gap-4 border-t border-sand-200 pt-6">
-        <div>
+        <div className="min-w-0">
           <p className="font-medium">Узоры на фоне карточки «Мы вместе уже»</p>
           <p className="text-sm text-ink-soft">В каждой теме свой узор. Если выключить, останутся два круга, как в логотипе.</p>
         </div>
