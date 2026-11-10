@@ -4,10 +4,10 @@ import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { colorHex } from "@/utils/calendar";
 import { HabitIcon } from "@/utils/habit-icons";
-import { WEEKDAY_SHORT, completionRate, computePairStreak, computeStreak, dueToday, scheduleKind, scheduleLabel, weeklyCounts, weekdayCounts, type Schedule } from "@/utils/habit-stats";
+import { WEEKDAY_SHORT, isAutoFrozen, isScheduled, completionRate, computePairStreak, computeStreak, dueToday, scheduleKind, scheduleLabel, weeklyCounts, weekdayCounts, type Schedule } from "@/utils/habit-stats";
 import { pluralRu, todayISO } from "@/utils/days";
 import { cn } from "@/utils/cn";
-import { ChevronLeft, ChevronRight, Snowflake, BarChart2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, BarChart2 } from "lucide-react";
 import type { HabitLike } from "@/components/habits/habit-form";
 
 export type DetailHabit = HabitLike & { id: string; owner_id: string | null };
@@ -18,7 +18,7 @@ const dayWord = (n: number) => pluralRu(n, ["день", "дня", "дней"]);
 const weekWord = (n: number) => pluralRu(n, ["неделя", "недели", "недель"]);
 const shortDate = (iso: string) => new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`)).replace(".", "");
 
-export function HabitDetail({ habit, checkins, freezes, me, partner, onClose, onToggleDay, onToggleFreeze, onOpenGlobalStats }: {
+export function HabitDetail({ habit, checkins, freezes, me, partner, onClose, onToggleDay, onOpenGlobalStats }: {
   habit: DetailHabit | null; 
   checkins: Mark[]; 
   freezes: Mark[]; 
@@ -26,24 +26,22 @@ export function HabitDetail({ habit, checkins, freezes, me, partner, onClose, on
   partner: Person | null; 
   onClose: () => void;
   onToggleDay?: (habitId: string, userId: string, dayIso: string) => Promise<void>;
-  onToggleFreeze?: (habitId: string, userId: string, dayIso: string) => Promise<void>;
   onOpenGlobalStats?: () => void;
 }) {
   return (
     <Modal open={habit !== null} onClose={onClose} title={habit?.title ?? ""} size="lg">
-      {habit && <Body key={habit.id} habit={habit} checkins={checkins} freezes={freezes} me={me} partner={partner} onToggleDay={onToggleDay} onToggleFreeze={onToggleFreeze} onOpenGlobalStats={onOpenGlobalStats} />}
+      {habit && <Body key={habit.id} habit={habit} checkins={checkins} freezes={freezes} me={me} partner={partner} onToggleDay={onToggleDay} onOpenGlobalStats={onOpenGlobalStats} />}
     </Modal>
   );
 }
 
-function Body({ habit, checkins, freezes, me, partner, onToggleDay, onToggleFreeze, onOpenGlobalStats }: { 
+function Body({ habit, checkins, freezes, me, partner, onToggleDay, onOpenGlobalStats }: { 
   habit: DetailHabit; 
   checkins: Mark[]; 
   freezes: Mark[]; 
   me: Person; 
   partner: Person | null;
   onToggleDay?: (habitId: string, userId: string, dayIso: string) => Promise<void>;
-  onToggleFreeze?: (habitId: string, userId: string, dayIso: string) => Promise<void>;
   onOpenGlobalStats?: () => void;
 }) {
   const today = todayISO();
@@ -81,8 +79,6 @@ function Body({ habit, checkins, freezes, me, partner, onToggleDay, onToggleFree
   const weekdays = weekdayCounts(done);
   const maxWeek = Math.max(1, kind === "count" ? schedule.per_week ?? 1 : 7, ...weeks.map((w) => w.count));
   const maxDay = Math.max(1, ...weekdays);
-  const monthKey = today.slice(0, 7);
-  const freezeCount = [...frozen].filter((d) => d.startsWith(monthKey)).length;
   const label = scheduleLabel(schedule);
 
   const getPastIso = (daysAgo: number) => {
@@ -152,16 +148,6 @@ function Body({ habit, checkins, freezes, me, partner, onToggleDay, onToggleFree
               >
                 {done.has(yesterdayIso) ? "✓ Вчера" : "+ Вчера"}
               </button>
-              {onToggleFreeze && (
-                <button
-                  type="button"
-                  onClick={() => onToggleFreeze(habit.id, activeUserId, yesterdayIso)}
-                  title="Заморозить вчерашний день"
-                  className={cn("p-1.5 text-xs rounded-lg border transition-all flex items-center gap-1", frozen.has(yesterdayIso) ? "bg-blue-500 text-white border-blue-500" : "bg-sand-100 hover:bg-sand-200 border-sand-300 text-blue-600")}
-                >
-                  <Snowflake size={14} />
-                </button>
-              )}
             </>
           )}
         </div>
@@ -181,7 +167,7 @@ function Body({ habit, checkins, freezes, me, partner, onToggleDay, onToggleFree
         <div className="p-3 rounded-xl bg-sand-50/60 border border-sand-200"><small className="text-[11px] text-ink-faint block">Всего отметок</small><strong className="text-xl font-bold">{done.size}</strong><span className="text-xs text-ink-soft block">за год</span></div>
       </div>
 
-      {freezeCount > 0 && <p className="text-xs text-blue-600 mb-3">❄ Заморозок в этом месяце: {freezeCount} из 3.</p>}
+      <p className="text-xs text-blue-600 mb-3">❄ Пропущенные дни замораживаются сами, серия сохраняется. Она сгорает, только если целый месяц нет ни одной отметки.</p>
 
       {/* УДОБНЫЙ КАЛЕНДАРЬ МЕСЯЦА С ЛИСТАНИЕМ */}
       <div className="p-4 rounded-2xl bg-paper border border-sand-200 space-y-3">
@@ -203,7 +189,7 @@ function Body({ habit, checkins, freezes, me, partner, onToggleDay, onToggleFree
           {calendarDays.map((iso, idx) => {
             if (!iso) return <div key={`empty-${idx}`} />;
             const isDone = done.has(iso);
-            const isFrozen = frozen.has(iso);
+            const isFrozen = frozen.has(iso) || (isScheduled(schedule, iso) && isAutoFrozen(done, iso, today));
             const isToday = iso === today;
 
             return (
@@ -212,7 +198,7 @@ function Body({ habit, checkins, freezes, me, partner, onToggleDay, onToggleFree
                 type="button"
                 disabled={!canInteract}
                 onClick={() => canInteract && onToggleDay(habit.id, activeUserId, iso)}
-                title={`${iso}: ${isDone ? "Выполнено" : isFrozen ? "Заморожено" : "Пропуск"}. Нажмите, чтобы изменить.`}
+                title={`${iso}: ${isDone ? "Выполнено" : isFrozen ? "Заморожено автоматически" : "Пропуск"}. Нажмите, чтобы изменить.`}
                 className={cn(
                   "h-9 rounded-xl flex flex-col items-center justify-center text-xs font-semibold transition-all border relative",
                   isDone ? "bg-accent-600 text-white border-accent-600 shadow-xs" :

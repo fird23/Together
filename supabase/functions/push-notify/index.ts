@@ -22,7 +22,7 @@ async function webPush(): Promise<any | null> {
 
 type Payload = { title: string; body: string; url?: string; tag?: string };
 const MORNING_HOUR = 9;
-const MOODS: Record<string, string> = { great: "🤩 Прекрасно", good: "😊 Хорошо", angry: "😠 Злой", calm: "😌 Спокойно", tired: "😴 Без сил", sad: "🥺 Грустно", stressed: "😰 Тревожно" };
+const MOODS: Record<string, string> = { great: "🤩 Прекрасно", good: "😊 Хорошо", angry: "😠 Злой", calm: "😌 Спокойно", tired: "😴 Без сил", sad: "🥺 Грустно", stressed: "😰 Тревожно", love: "😍 Влюблён", miss: "🥹 Скучаю", playful: "😜 Игривый" };
 
 /* ---------- Android (Firebase Cloud Messaging, HTTP v1) ---------- */
 const b64url = (input: string | ArrayBuffer) => {

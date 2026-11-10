@@ -7,12 +7,16 @@ import {
   Check, 
   ChevronDown, 
   ChevronUp, 
+  GripVertical, 
   MessageSquare, 
   Pencil, 
   Plus, 
   Trash2, 
   X 
 } from "lucide-react";
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { PageHeader } from "@/components/layout/page-header";
 import { Illustration } from "@/components/ui/illustrations";
 import { FeatureOff } from "@/components/ui/feature-off";
@@ -24,7 +28,7 @@ import { ColorPicker } from "@/components/ui/color-picker";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { useRealtime } from "@/hooks/use-realtime";
 import { GENERIC_ERROR } from "@/lib/errors";
-import { addTodo, listTodos, removeTodo, setTodoDone, updateTodo } from "@/services/todos";
+import { addTodo, listTodos, removeTodo, setTodoDone, setTodoOrder, updateTodo } from "@/services/todos";
 import { addDays, todayISO } from "@/utils/days";
 import { featureOn } from "@/utils/features";
 import { cn } from "@/utils/cn";
@@ -76,6 +80,24 @@ const shortDate = (iso: string) =>
     .format(new Date(`${iso}T00:00:00Z`))
     .replace(".", "");
 
+/** Строка списка, которую можно перетащить за ручку слева. Перетаскивание только по вертикали и только за ручку, поэтому прокрутка пальцем не мешает. */
+function SortableLi({ id, enabled, className, style, children }: {
+  id: string; enabled: boolean; className?: string; style?: React.CSSProperties; children: (grip: React.ReactNode) => React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: !enabled });
+  const grip = enabled ? (
+    <button type="button" ref={setActivatorNodeRef} {...attributes} {...listeners} className="todo-grip" aria-label="Перетащить, чтобы изменить порядок">
+      <GripVertical size={17} aria-hidden />
+    </button>
+  ) : null;
+  return (
+    <li ref={setNodeRef} className={cn(className, isDragging && "is-dragging")}
+      style={{ ...style, transform: CSS.Transform.toString(transform ? { ...transform, x: 0, scaleX: 1, scaleY: 1 } : null), transition, position: "relative", zIndex: isDragging ? 5 : undefined }}>
+      {children(grip)}
+    </li>
+  );
+}
+
 export function TodosView() {
   const { couple, profile, partner } = useWorkspace();
   const [items, setItems] = useState<Todo[] | null>(null);
@@ -95,6 +117,10 @@ export function TodosView() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const titleRef = useRef<HTMLInputElement>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   const ready = Boolean(couple && profile);
   useEffect(() => { if (ready && window.location.hash === "#new") titleRef.current?.focus(); }, [ready]);
@@ -118,12 +144,43 @@ export function TodosView() {
   const whoOf = (t: Todo): Who => (t.assignee_id === null ? "both" : t.assignee_id === profile.id ? "me" : "partner");
   const assigneeId = (w: Who) => (w === "both" ? null : w === "me" ? profile.id : partner?.id ?? null);
 
-  const defaultSorter = (a: Todo, b: Todo) => b.created_at.localeCompare(a.created_at);
+  // Ручной порядок (sort_order, миграция 022); без него — новые сверху, как раньше.
+  const defaultSorter = (a: Todo, b: Todo) =>
+    a.sort_order !== undefined && b.sort_order !== undefined ? a.sort_order - b.sort_order : b.created_at.localeCompare(a.created_at);
 
   const all = (items ?? []).filter((t) => filter === "all" || whoOf(t) === filter);
   const active = all.filter((t) => !t.done_at).sort(defaultSorter);
   const done = all.filter((t) => t.done_at).sort((a, b) => (b.done_at ?? "").localeCompare(a.done_at ?? ""));
   const shown = tab === "active" ? active : done;
+  const canReorder = tab === "active" && (items ?? []).some((t) => typeof t.sort_order === "number");
+
+  /** Новое место дела: между соседями (среднее их значений). Если места почти не осталось, перенумеровываем весь список. */
+  async function onDragEnd({ active: dragged, over }: DragEndEvent) {
+    if (!over || dragged.id === over.id) return;
+    const from = active.findIndex((t) => t.id === dragged.id), to = active.findIndex((t) => t.id === over.id);
+    if (from < 0 || to < 0) return;
+    const next = arrayMove(active, from, to);
+    const moved = next[to], before = next[to - 1], after = next[to + 1];
+    const b = before?.sort_order, a = after?.sort_order;
+    const gapTooSmall = b !== undefined && a !== undefined && Math.abs(a - b) < 1e-6;
+    setError("");
+    try {
+      if (gapTooSmall) {
+        const full = (items ?? []).filter((t) => !t.done_at).sort(defaultSorter).filter((t) => t.id !== moved.id);
+        const at = before ? full.findIndex((t) => t.id === before.id) + 1 : 0;
+        full.splice(at, 0, moved);
+        setItems((prev) => prev?.map((t) => { const i = full.findIndex((x) => x.id === t.id); return i >= 0 ? { ...t, sort_order: i * 1024 } : t; }) ?? prev);
+        await Promise.all(full.map((t, i) => setTodoOrder(t.id, i * 1024)));
+      } else {
+        const value = b !== undefined && a !== undefined ? (a + b) / 2 : b !== undefined ? b + 1 : a !== undefined ? a - 1 : 0;
+        setItems((prev) => prev?.map((t) => (t.id === moved.id ? { ...t, sort_order: value } : t)) ?? prev);
+        await setTodoOrder(moved.id, value);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : GENERIC_ERROR);
+      await load();
+    }
+  }
   
   const filters: { id: Filter; label: string }[] = [
     { id: "all", label: "Все" }, { id: "me", label: "Мои" }, ...(partner ? [{ id: "partner" as Filter, label: partnerName }] : []), { id: "both", label: "Вместе" },
@@ -294,6 +351,8 @@ export function TodosView() {
           <p className="mt-2">{filter !== "all" ? "В этом разделе ничего нет." : tab === "active" ? "Все дела сделаны. Добавьте новое или отдохните." : "Выполненных дел пока нет."}</p>
         </div>
       ) : (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => void onDragEnd(e)}>
+        <SortableContext items={shown.map((t) => t.id)} strategy={verticalListSortingStrategy}>
         <ul className="space-y-2">
           {shown.map((t) => {
             const { cleanTitle, comment: itemComment, subtasks: itemSubtasks } = parseTodoTitle(t.title);
@@ -303,8 +362,10 @@ export function TodosView() {
             const isExpanded = expandedTodoIds[t.id] ?? true;
 
             return (
-              <li key={t.id} style={t.color ? ({ "--hc": colorHex(t.color) } as React.CSSProperties) : undefined} className={cn("group flex flex-col rounded-2xl bg-paper px-4 py-3 shadow-soft ring-1 ring-sand-200", t.color && "todo-colored", t.done_at && "opacity-70")}>
+              <SortableLi key={t.id} id={t.id} enabled={canReorder} style={t.color ? ({ "--hc": colorHex(t.color) } as React.CSSProperties) : undefined} className={cn("group flex flex-col rounded-2xl bg-paper px-4 py-3 shadow-soft ring-1 ring-sand-200", t.color && "todo-colored", t.done_at && "opacity-70")}>
+                {(grip) => (<>
                 <div className="flex items-center gap-3.5">
+                  {grip}
                   <button type="button" onClick={() => toggle(t)} aria-pressed={Boolean(t.done_at)} aria-label={t.done_at ? `Вернуть: ${cleanTitle}` : `Готово: ${cleanTitle}`} className={cn("hb-check", t.done_at && "checked")}>
                     {t.done_at && <Check size={14} />}
                   </button>
@@ -361,10 +422,13 @@ export function TodosView() {
                     )}
                   </div>
                 )}
-              </li>
+                </>)}
+              </SortableLi>
             );
           })}
         </ul>
+        </SortableContext>
+        </DndContext>
       )}
       {tab === "done" && done.length > 0 && <button type="button" onClick={clearDone} className="mt-4 text-sm font-medium text-ink-soft underline underline-offset-4 hover:text-danger">Очистить выполненные</button>}
 

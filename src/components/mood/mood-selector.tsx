@@ -18,6 +18,9 @@ const choices = [
   { value: "tired", label: "Без сил", hue: "#9A82C9" },
   { value: "sad", label: "Грустно", hue: "#D9708E" },
   { value: "stressed", label: "Тревожно", hue: "#D98B5B" },
+  { value: "love", label: "Влюблён", hue: "#E5648A" },
+  { value: "miss", label: "Скучаю", hue: "#B36BC9" },
+  { value: "playful", label: "Игривый", hue: "#4FB0A5" },
 ];
 
 /** Старые записи с «Хорошо» остаются в истории и показываются как раньше, но выбрать это настроение уже нельзя. */

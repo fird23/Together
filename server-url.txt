@@ -1,2 +1,3 @@
 # Впишите ниже адрес вашего сайта на Vercel (одной строкой, начиная с https://), сохраните файл.
 # Строки с решёткой игнорируются. Пример: https://my-together.vercel.app
+https://together-ten-theta.vercel.app

@@ -8,7 +8,20 @@ export const WEEKDAY_SHORT = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "�
 
 export const isoWeekday = (iso: string) => ((new Date(`${iso}T12:00:00`).getDay() + 6) % 7) + 1;
 export const weekStart = (iso: string) => addDays(iso, -(isoWeekday(iso) - 1));
-const diffDays = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
+export const diffDays = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
+
+/**
+ * Заморозка автоматическая и без лимита: пропущенный день не обрывает серию, пока после последней отметки
+ * прошло не больше STREAK_GAP_DAYS дней. Если целый месяц нет ни одной отметки, серия сгорает и начинается заново.
+ */
+export const STREAK_GAP_DAYS = 30;
+
+/** Заморожен ли день сам: он уже прошёл, не отмечен, и последняя отметка была не позднее месяца назад. */
+export function isAutoFrozen(done: Set<string>, iso: string, today: string): boolean {
+  if (iso >= today || done.has(iso)) return false;
+  for (let k = 1; k <= STREAK_GAP_DAYS; k++) if (done.has(addDays(iso, -k))) return true;
+  return false;
+}
 
 export function scheduleKind(s: Schedule): ScheduleKind {
   if (s.per_week) return "count";
@@ -31,7 +44,7 @@ export function scheduleLabel(s: Schedule): string | null {
   return null;
 }
 
-/** Серия: для «каждый день» и «по дням» считаются дни, для «N в неделю» считаются недели с выполненной нормой. */
+/** Серия: для «каждый день» и «по дням» считаются дни с отметкой, для «N в неделю» считаются недели с выполненной нормой. Пропуски замораживаются сами. */
 export function computeStreak(s: Schedule, done: Set<string>, frozen: Set<string>, today: string): { current: number; best: number; unit: "days" | "weeks" } {
   const kind = scheduleKind(s);
   const all = [...done, ...frozen].sort();
@@ -40,43 +53,51 @@ export function computeStreak(s: Schedule, done: Set<string>, frozen: Set<string
   if (kind === "count") {
     const perWeek = new Map<string, number>();
     for (const d of done) perWeek.set(weekStart(d), (perWeek.get(weekStart(d)) ?? 0) + 1);
+    const marks = [...done].sort();
     const thisWeek = weekStart(today);
-    let run = 0, best = 0;
+    let run = 0, best = 0, k = 0, last: string | null = null;
     for (let w = weekStart(all[0]); w <= thisWeek; w = addDays(w, 7)) {
+      const end = addDays(w, 6);
+      while (k < marks.length && marks[k] <= end) last = marks[k++];
       if ((perWeek.get(w) ?? 0) >= (s.per_week ?? 1)) run++;
-      else if (w !== thisWeek) run = 0; // текущая неделя ещё не закончена и серию не рвёт
+      else if (w !== thisWeek && !(last && diffDays(last, end) <= STREAK_GAP_DAYS)) run = 0; // неделя без нормы заморожена, пока не прошёл месяц без отметок
       best = Math.max(best, run);
     }
+    if (!last || diffDays(last, today) > STREAK_GAP_DAYS) run = 0; // больше месяца без отметок: серия сгорела
     return { current: run, best, unit: "weeks" };
   }
 
-  let run = 0, best = 0;
+  let run = 0, best = 0, last: string | null = null;
   const span = Math.min(800, diffDays(all[0], today));
   for (let i = 0; i <= span; i++) {
     const d = addDays(all[0], i);
-    if (done.has(d)) run++;
-    else if (frozen.has(d)) { /* заморозка: серия сохраняется, но не растёт */ }
-    else if (isScheduled(s, d) && d !== today) run = 0; // пропуск запланированного дня; сегодняшний ещё можно успеть
+    if (done.has(d)) { run++; last = d; }
+    else if (frozen.has(d)) { /* старая ручная заморозка: серия сохраняется */ }
+    else if (isScheduled(s, d) && d !== today && !(last && diffDays(last, d) <= STREAK_GAP_DAYS)) run = 0; // месяц без отметок
     best = Math.max(best, run);
   }
+  if (!last || diffDays(last, today) > STREAK_GAP_DAYS) run = 0; // больше месяца без отметок: серия сгорела, даже если сегодня ещё не отмечено
   return { current: run, best, unit: "days" };
 }
 
-/** Общая серия пары: считаются дни, когда выполнили оба. */
+/** Общая серия пары: считаются дни, когда выполнили оба; пропуск замораживается, пока у каждого была отметка в последний месяц. */
 export function computePairStreak(s: Schedule, doneA: Set<string>, doneB: Set<string>, frozenA: Set<string>, frozenB: Set<string>, today: string): number {
   if (scheduleKind(s) === "count") return 0;
   const first = [...doneA, ...doneB].sort()[0];
   if (!first) return 0;
-  let run = 0;
+  let run = 0, lastA: string | null = null, lastB: string | null = null;
   const span = Math.min(800, diffDays(first, today));
   for (let i = 0; i <= span; i++) {
     const d = addDays(first, i);
-    const both = doneA.has(d) && doneB.has(d);
-    const covered = (doneA.has(d) || frozenA.has(d)) && (doneB.has(d) || frozenB.has(d));
-    if (both) run++;
-    else if (!covered && isScheduled(s, d) && d !== today) run = 0;
+    if (doneA.has(d)) lastA = d;
+    if (doneB.has(d)) lastB = d;
+    if (doneA.has(d) && doneB.has(d)) { run++; continue; }
+    if (!isScheduled(s, d) || d === today) continue;
+    const alive = (done: Set<string>, frozen: Set<string>, last: string | null) => done.has(d) || frozen.has(d) || Boolean(last && diffDays(last, d) <= STREAK_GAP_DAYS);
+    if (!(alive(doneA, frozenA, lastA) && alive(doneB, frozenB, lastB))) run = 0;
   }
-  return run;
+  const gone = (last: string | null) => !last || diffDays(last, today) > STREAK_GAP_DAYS;
+  return gone(lastA) || gone(lastB) ? 0 : run;
 }
 
 /** Выполнение за последние `days` дней, в процентах от плана расписания. */
@@ -116,7 +137,7 @@ export function heatmap(s: Schedule, done: Set<string>, frozen: Set<string>, tod
   const cells: HeatCell[] = [];
   for (let i = 0; i < weeks * 7; i++) {
     const iso = addDays(first, i);
-    const state: HeatCell["state"] = iso > today ? "future" : done.has(iso) ? "done" : frozen.has(iso) ? "frozen" : !isScheduled(s, iso) ? "off" : "miss";
+    const state: HeatCell["state"] = iso > today ? "future" : done.has(iso) ? "done" : frozen.has(iso) || (isScheduled(s, iso) && isAutoFrozen(done, iso, today)) ? "frozen" : !isScheduled(s, iso) ? "off" : "miss";
     cells.push({ iso, state });
   }
   return cells;

@@ -87,6 +87,8 @@ export type Todo = {
   done_at: string | null;
   done_by: string | null;
   created_at: string;
+  /** Ручной порядок (меньше = выше). Нет, пока не применена миграция 022. */
+  sort_order?: number;
 };
 
 export type TalkKind = "complain" | "say" | "ask" | "suggest";

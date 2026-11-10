@@ -19,6 +19,9 @@ export type HabitLike = {
   icon?: string | null;
   week_days?: number[] | null;
   per_week?: number | null;
+  /** Числовая норма на день (5000 шагов); пусто — обычная привычка с галочкой. */
+  target_value?: number | null;
+  unit?: string | null;
 };
 
 export type HabitDraft = {
@@ -29,12 +32,29 @@ export type HabitDraft = {
   mode: ScheduleKind;
   days: number[];
   perWeek: number;
+  /** «check» — просто отметить, «number» — вписать число и достичь нормы. */
+  kind: "check" | "number";
+  target: string;
+  unit: string;
 };
 
-export const emptyDraft = (): HabitDraft => ({ title: "", scope: "shared", color: null, icon: null, mode: "daily", days: [], perWeek: 3 });
+export const emptyDraft = (): HabitDraft => ({ title: "", scope: "shared", color: null, icon: null, mode: "daily", days: [], perWeek: 3, kind: "check", target: "", unit: "" });
 export const draftFromHabit = (h: HabitLike): HabitDraft => ({
   title: h.title, scope: h.scope, color: h.color ?? null, icon: h.icon ?? null,
   mode: scheduleKind(h), days: h.week_days ?? [], perWeek: h.per_week ?? 3,
+  kind: h.target_value ? "number" : "check", target: h.target_value ? String(Number(h.target_value)) : "", unit: h.unit ?? "",
+});
+
+/** Число из поля ввода: допускает запятую и пробелы («5 000», «1,5»). */
+export const parseAmount = (raw: string): number => {
+  const n = Number(raw.replace(/\s/g, "").replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+};
+
+/** Колонки базы для числовой нормы из черновика. */
+export const targetColumns = (d: HabitDraft) => ({
+  target_value: d.kind === "number" ? parseAmount(d.target) : null,
+  unit: d.kind === "number" ? d.unit.trim() || null : null,
 });
 
 /** Колонки базы для расписания из черновика. */
@@ -44,13 +64,44 @@ export const scheduleColumns = (d: HabitDraft) => ({
 });
 
 export const validateDraft = (d: HabitDraft): string | null =>
-  !d.title.trim() ? "Напишите название привычки." : d.mode === "days" && d.days.length === 0 ? "Выберите хотя бы один день недели." : null;
+  !d.title.trim() ? "Напишите название привычки."
+    : d.mode === "days" && d.days.length === 0 ? "Выберите хотя бы один день недели."
+    : d.kind === "number" && !(parseAmount(d.target) > 0 && parseAmount(d.target) <= 1_000_000) ? "Укажите норму на день: число больше нуля, например 5000."
+    : null;
+
+const UNIT_PRESETS = ["шагов", "км", "л", "мл", "мин", "раз", "стр."];
 
 /** Цвет, иконка и расписание привычки. Используется и при создании, и при изменении. */
 export function HabitStyleFields({ draft, onChange, disabled }: { draft: HabitDraft; onChange: (patch: Partial<HabitDraft>) => void; disabled?: boolean }) {
   const toggleDay = (day: number) => onChange({ days: draft.days.includes(day) ? draft.days.filter((d) => d !== day) : [...draft.days, day] });
   return (
     <div className="hf-fields">
+      <fieldset disabled={disabled}>
+        <legend>Как отмечать</legend>
+        <div className="hb-segment" role="radiogroup" aria-label="Способ отметки">
+          <button type="button" role="radio" aria-checked={draft.kind === "check"} className={draft.kind === "check" ? "active" : ""} onClick={() => onChange({ kind: "check" })}>Галочка</button>
+          <button type="button" role="radio" aria-checked={draft.kind === "number"} className={draft.kind === "number" ? "active" : ""} onClick={() => onChange({ kind: "number" })}>Число</button>
+        </div>
+        {draft.kind === "number" && (
+          <div className="hf-number">
+            <div className="hf-number-row">
+              <label>Норма на день
+                <input value={draft.target} onChange={(e) => onChange({ target: e.target.value })} inputMode="decimal" placeholder="5000" maxLength={9} aria-label="Норма на день" />
+              </label>
+              <label>Единица
+                <input value={draft.unit} onChange={(e) => onChange({ unit: e.target.value })} placeholder="шагов" maxLength={16} aria-label="Единица измерения" />
+              </label>
+            </div>
+            <div className="hf-units" role="group" aria-label="Частые единицы">
+              {UNIT_PRESETS.map((u) => <button type="button" key={u} className={draft.unit === u ? "on" : ""} onClick={() => onChange({ unit: u })}>{u}</button>)}
+            </div>
+          </div>
+        )}
+        <p className="hb-muted hb-caption">
+          {draft.kind === "number" ? "Впишите, сколько сделано. Когда число достигнет нормы или станет больше, привычка отметится сама." : "Обычная отметка: выполнено или нет."}
+        </p>
+      </fieldset>
+
       <fieldset disabled={disabled}>
         <legend>Цвет</legend>
         <div className="hf-colors" role="radiogroup" aria-label="Цвет привычки">

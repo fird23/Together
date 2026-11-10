@@ -5,9 +5,18 @@ import type { EventColor, Todo } from "@/types";
 const COLS = "id,couple_id,created_by,title,assignee_id,due_day,done_at,done_by,created_at,color";
 
 export async function listTodos(coupleId: string): Promise<Todo[]> {
+  // Порядок дел хранится в sort_order (миграция 022). Если её ещё нет, список работает по времени создания.
+  const ordered = await db().from("todos").select(`${COLS},sort_order`).eq("couple_id", coupleId).order("created_at", { ascending: false }).limit(300);
+  if (!ordered.error) return (ordered.data ?? []) as Todo[];
   const { data, error } = await db().from("todos").select(COLS).eq("couple_id", coupleId).order("created_at", { ascending: false }).limit(300);
   if (error) throw new AppError("Список дел не готов: примените миграцию 014_todos_talk_gratitude.sql.");
   return (data ?? []) as Todo[];
+}
+
+/** Сохраняет новое место дела в списке (меньше число — выше). */
+export async function setTodoOrder(id: string, sortOrder: number) {
+  const { error } = await db().from("todos").update({ sort_order: sortOrder }).eq("id", id);
+  if (error) throw dbError(error);
 }
 
 export async function addTodo(input: { coupleId: string; userId: string; title: string; assigneeId: string | null; dueDay: string | null; color?: EventColor | null }) {
