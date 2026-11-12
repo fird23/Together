@@ -76,22 +76,31 @@ async function sendFcm(token: string, payload: Payload): Promise<boolean> {
 }
 
 async function push(userId: string, payload: Payload) {
+  const result = { android: 0, web: 0, failed: 0 };
   const { data: devices } = await sb.from("device_tokens").select("id,token").eq("user_id", userId);
   for (const d of devices ?? []) {
-    try { if (!(await sendFcm(d.token, payload))) await sb.from("device_tokens").delete().eq("id", d.id); } catch (e) { console.error("FCM error", e); }
+    try {
+      if (await sendFcm(d.token, payload)) result.android++;
+      else { result.failed++; await sb.from("device_tokens").delete().eq("id", d.id); }
+    } catch (e) { result.failed++; console.error("FCM error", e); }
   }
 
   const webpush = await webPush();
-  if (!webpush) return;
+  if (!webpush) return result;
   const { data: subs } = await sb.from("push_subscriptions").select("id,endpoint,p256dh,auth").eq("user_id", userId);
   for (const s of subs ?? []) {
     try {
-      await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(payload));
+      await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(payload), { TTL: 86_400 });
+      result.web++;
     } catch (e) {
+      result.failed++;
       const code = (e as { statusCode?: number }).statusCode;
-      if (code === 404 || code === 410) await sb.from("push_subscriptions").delete().eq("id", s.id); // устройство отписалось
+      console.error("Web push error", code, (e as { body?: string }).body ?? "");
+      // 404/410: устройство отписалось; 401/403: подписка создана с другим ключом VAPID. Приложение переподпишет устройство само.
+      if (code === 404 || code === 410 || code === 401 || code === 403) await sb.from("push_subscriptions").delete().eq("id", s.id);
     }
   }
+  return result;
 }
 
 /** Местная дата и час в часовом поясе пользователя. */
@@ -183,6 +192,10 @@ async function runCron() {
 }
 
 /** Проверка: отправляет тестовое уведомление на все подключённые устройства. */
+async function runTestFor(userId: string) {
+  return await push(userId, { title: "Together", body: "Проверка уведомлений: всё работает 💜", url: "/dashboard", tag: "test" });
+}
+
 async function runTest() {
   const [{ data: tokens }, { data: subs }] = await Promise.all([sb.from("device_tokens").select("user_id"), sb.from("push_subscriptions").select("user_id")]);
   const users = new Set([...(tokens ?? []), ...(subs ?? [])].map((r) => r.user_id));
@@ -206,6 +219,13 @@ async function runWebhook(body: { type: string; table: string; record: Record<st
     if (prefs?.partner_mood === false) return;
     await push(partner, { title: `${await nameOf(r.user_id)}: настроение`, body: `${MOODS[r.mood] ?? r.mood}${r.note ? ` — ${r.note}` : ""}`, url: "/dashboard", tag: "mood" });
   }
+  if (body.table === "support_tickets") {
+    // Администратор ответил на обращение: сообщаем автору
+    if (!r.user_id || !r.admin_reply) return;
+    const text = r.admin_reply.length > 140 ? `${r.admin_reply.slice(0, 137)}…` : r.admin_reply;
+    await push(r.user_id, { title: "Ответ от поддержки", body: text, url: "/support", tag: "support" });
+    return;
+  }
   if (body.table === "habit_checkins") {
     const { data: habit } = await sb.from("habits").select("title,couple_id").eq("id", r.habit_id).maybeSingle();
     if (!habit) return;
@@ -221,6 +241,10 @@ Deno.serve(async (req) => {
   if (req.headers.get("x-webhook-secret") !== Deno.env.get("WEBHOOK_SECRET")) return new Response("forbidden", { status: 403 });
   try {
     const body = await req.json();
+    if (body.type === "test" && typeof body.user_id === "string") {
+      const r = await runTestFor(body.user_id);
+      return new Response(`test sent: android ${r.android}, web ${r.web}, failed ${r.failed}`);
+    }
     if (body.type === "test") return new Response(`test sent to ${await runTest()} user(s)`);
     if (body.type === "cron") await runCron(); else await runWebhook(body);
     return new Response("ok");

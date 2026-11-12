@@ -6,6 +6,7 @@ import { useRealtime } from "@/hooks/use-realtime";
 import type { Session } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { signOut as signOutService } from "@/services/auth";
+import { touchLastSeen } from "@/services/admin";
 import { SetupScreen } from "@/components/layout/setup-screen";
 import type { Couple, Profile } from "@/types";
 
@@ -92,6 +93,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       if (id !== requestId.current) return; // пришёл более свежий запрос
       setData({ profile: profileRes.data as Profile | null, couple, partner, memberCount });
       setStatus("ready");
+      void touchLastSeen();
     } catch {
       if (id !== requestId.current) return;
       setStatus("error");

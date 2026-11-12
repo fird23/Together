@@ -12,19 +12,22 @@ type Mood = { id: string; user_id: string; mood: string; note: string | null; da
 
 /** hue — акцентный цвет настроения; фоны подмешиваются к теме, поэтому блок одинаково хорош в светлом и тёмном режиме. */
 const choices = [
+  // Хорошее
   { value: "great", label: "Прекрасно", hue: "#E9A93B" },
-  { value: "angry", label: "Злой", hue: "#D8584E" },
+  { value: "good", label: "Хорошо", hue: "#6FAE6B" },
+  { value: "love", label: "Влюблён", hue: "#E5648A" },
+  // Нейтральное
   { value: "calm", label: "Спокойно", hue: "#6C8FD6" },
   { value: "tired", label: "Без сил", hue: "#9A82C9" },
+  { value: "miss", label: "Скучаю", hue: "#B36BC9" },
+  // Тяжёлое
   { value: "sad", label: "Грустно", hue: "#D9708E" },
   { value: "stressed", label: "Тревожно", hue: "#D98B5B" },
-  { value: "love", label: "Влюблён", hue: "#E5648A" },
-  { value: "miss", label: "Скучаю", hue: "#B36BC9" },
-  { value: "playful", label: "Игривый", hue: "#4FB0A5" },
+  { value: "angry", label: "Злой", hue: "#D8584E" },
 ];
 
-/** Старые записи с «Хорошо» остаются в истории и показываются как раньше, но выбрать это настроение уже нельзя. */
-const legacy = [{ value: "good", label: "Хорошо", hue: "#6FAE6B" }];
+/** Убранное из списка настроение остаётся в истории и показывается как раньше, но выбрать его уже нельзя. */
+const legacy = [{ value: "playful", label: "Игривый", hue: "#4FB0A5" }];
 
 const todayISO = () => {
   const d = new Date();
@@ -128,7 +131,7 @@ export function MoodSelector({ compact = false }: { compact?: boolean }) {
           onChange={(e) => setNote(e.target.value)}
           maxLength={240}
           rows={1}
-          placeholder="Добавить комментарий…"
+          placeholder="Комментарий…"
           className="mood-note-input"
         />
         <button

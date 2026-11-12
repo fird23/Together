@@ -4,6 +4,7 @@ import { PartnersPair } from "@/components/couple/partners-pair";
 import { DayCounter } from "@/components/couple/day-counter";
 import { VennBackdrop } from "@/components/couple/venn-backdrop";
 import { useHeroPhotoUrl } from "@/hooks/use-hero-photo";
+import { heroBlurPx } from "@/services/hero-photo";
 import { DAYS_FORMS, daysTogether, describeBreakdown, formatDateRu, pluralRu } from "@/utils/days";
 import type { Couple, Profile } from "@/types";
 
@@ -22,9 +23,10 @@ export function CoupleHero({ me, partner, couple }: { me: Profile; partner: Prof
   const days = daysTogether(couple.start_date);
   const milestone = milestoneLabel(days);
   const photoUrl = useHeroPhotoUrl(couple.hero_photo_path);
-  const blur = couple.hero_photo_blur !== false;
+  const blurPx = heroBlurPx(couple);
   return (
-    <section className={`relative isolate overflow-hidden rounded-hero bg-paper shadow-soft ring-1 ring-sand-200 dashboard-couple-card ${photoUrl ? `has-photo ${blur ? "photo-blur" : ""}` : ""}`}>
+    <section className={`relative isolate overflow-hidden rounded-hero bg-paper shadow-soft ring-1 ring-sand-200 dashboard-couple-card ${photoUrl ? `has-photo ${blurPx > 0 ? "photo-blur" : ""}` : ""}`}
+      style={photoUrl ? ({ "--hero-blur": `${blurPx}px`, "--hero-scale": 1 + blurPx / 55 } as React.CSSProperties) : undefined}>
       <VennBackdrop className="hero-venn" />
       {photoUrl && <div className="hero-photo" style={{ backgroundImage: `url("${photoUrl}")` }} aria-hidden="true" />}
       {milestone && (

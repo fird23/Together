@@ -9,6 +9,7 @@ import { compressImage } from "@/lib/image";
 import { getShareWishlistMarks } from "@/services/privacy";
 import { removeTalkImages, talkImageUrls, uploadTalkImage } from "@/services/talk-media";
 import { useRealtime } from "@/hooks/use-realtime";
+import { ViewableImage } from "@/components/ui/viewable-image";
 
 type Wish = {
   id: string; owner_id: string; title: string; details: string | null;
@@ -73,7 +74,7 @@ function WishForm({ initial, submitLabel, busy, onSubmit, onCancel }: {
   return (
     <form className="wishlist-form" onSubmit={submit}>
       <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={100} placeholder="Чего бы мне хотелось?" aria-label="Желание" required />
-      <input value={details} onChange={(e) => setDetails(e.target.value)} maxLength={240} placeholder="Комментарий (необязательно)" aria-label="Комментарий к желанию" />
+      <input value={details} onChange={(e) => setDetails(e.target.value)} maxLength={240} placeholder="Комментарий" aria-label="Комментарий к желанию" />
       <input value={link} onChange={(e) => setLink(e.target.value)} maxLength={500} inputMode="url" autoCapitalize="none" autoCorrect="off" placeholder="Ссылка на товар (необязательно)" aria-label="Ссылка на желание" />
       {shownPhoto && (
         <div className="talk-attach">
@@ -279,10 +280,7 @@ export function WishlistView() {
                   </a>
                 )}
                 {photoUrl && (
-                  <a className="wishlist-photo" href={photoUrl} target="_blank" rel="noopener noreferrer" aria-label="Открыть фото">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={photoUrl} alt={`Фото: ${item.title}`} loading="lazy" />
-                  </a>
+                  <ViewableImage className="wishlist-photo" src={photoUrl} alt={`Фото: ${item.title}`} />
                 )}
                 {marked && <em><Lock size={10} /> {shareMine ? "Партнёр видит вашу отметку" : "Отметка только для вас"}</em>}
                 {tab === "mine" && partnerMarks.has(item.id) && <em><Check size={10} /> {partner?.display_name ?? "Партнёр"} отметил(а) это желание</em>}

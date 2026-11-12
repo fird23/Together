@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BarChart3, History, Gift, Heart, ListChecks, MessagesSquare, Target, type LucideIcon } from "lucide-react";
+import { BarChart3, History, Gift, Heart, Images, ListChecks, MessagesSquare, Target, type LucideIcon } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { useWorkspace } from "@/components/providers/workspace-provider";
@@ -15,6 +15,7 @@ const optional: { key: FeatureKey; title: string; text: string; icon: LucideIcon
   { key: "todos", title: "Список дел", text: "Общие и личные дела со сроками.", icon: ListChecks },
   { key: "talk", title: "Разговоры", text: "Обидки, слова, вопросы и предложения друг другу, и ответ на них.", icon: MessagesSquare },
   { key: "gratitude", title: "Благодарности", text: "Одна строка в день и банка благодарности.", icon: Heart },
+  { key: "album", title: "Фотоальбом", text: "Общие фотографии пары, подписи и просмотр на весь экран.", icon: Images },
   { key: "memories", title: "Воспоминания", text: "Что было в этот день месяц, полгода и год назад.", icon: History },
   { key: "weekly", title: "Итоги недели", text: "Сводка по привычкам, делам, настроению и благодарностям.", icon: BarChart3 },
 ];

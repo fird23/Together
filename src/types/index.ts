@@ -6,7 +6,7 @@ export type Profile = {
   created_at: string;
 };
 
-export type CoupleFeatures = { habits?: boolean; wishlist?: boolean; todos?: boolean; talk?: boolean; gratitude?: boolean; weekly?: boolean; memories?: boolean };
+export type CoupleFeatures = { habits?: boolean; wishlist?: boolean; todos?: boolean; talk?: boolean; gratitude?: boolean; weekly?: boolean; memories?: boolean; album?: boolean };
 
 export type Couple = {
   id: string;
@@ -17,6 +17,8 @@ export type Couple = {
   /** Путь к общему фото на карточке «Мы вместе уже» и включено ли размытие. */
   hero_photo_path?: string | null;
   hero_photo_blur?: boolean;
+  /** Сила размытия фото в пикселях (0–24). Пусто — по старому переключателю. */
+  hero_photo_blur_amount?: number | null;
 };
 
 /** Состояние приглашения, как его видит страница /invite/[token]. */
@@ -66,6 +68,44 @@ export type SupportTicket = {
   created_at: string;
 };
 
+export type AlbumPhoto = {
+  id: string;
+  couple_id: string;
+  uploaded_by: string;
+  media_path: string;
+  thumb_path: string;
+  caption: string | null;
+  taken_on: string; // YYYY-MM-DD
+  created_at: string;
+};
+
+export type AdminTicket = SupportTicket & {
+  email: string | null;
+  display_name: string | null;
+  meta: Record<string, string> | null;
+  updated_at: string;
+};
+
+export type AdminStats = {
+  users: number;
+  couples: number;
+  couples_complete: number;
+  new_users_7d: number;
+  active_7d: number;
+  active_30d: number;
+  android_devices: number;
+  web_push_users: number;
+  tickets: Partial<Record<TicketStatus, number>>;
+};
+
+export type AuditEntry = {
+  id: number;
+  action: string;
+  target: string | null;
+  details: Record<string, unknown> | null;
+  created_at: string;
+};
+
 export type NotificationPrefs = {
   timezone: string;
   habits: boolean;
@@ -92,7 +132,7 @@ export type Todo = {
 };
 
 export type TalkKind = "complain" | "say" | "ask" | "suggest";
-export type TalkThread = { id: string; couple_id: string; author_id: string; kind: TalkKind; body: string; resolved: boolean; created_at: string; media_path?: string | null };
-export type TalkReply = { id: string; thread_id: string; author_id: string; body: string; created_at: string; media_path?: string | null };
+export type TalkThread = { id: string; couple_id: string; author_id: string; kind: TalkKind; body: string; resolved: boolean; created_at: string; media_path?: string | null; edited_at?: string | null };
+export type TalkReply = { id: string; thread_id: string; author_id: string; body: string; created_at: string; media_path?: string | null; edited_at?: string | null };
 
 export type GratitudeNote = { id: string; user_id: string; day: string; text: string; created_at: string };

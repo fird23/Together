@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarPlus, HeartHandshake, ListPlus, MessageSquarePlus, Smile, Target, type LucideIcon } from "lucide-react";
+import { CalendarPlus, HeartHandshake, ImagePlus, ListPlus, MessageSquarePlus, Smile, Target, type LucideIcon } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { featureOn } from "@/utils/features";
@@ -17,6 +17,7 @@ export function QuickActions({ open, onClose }: { open: boolean; onClose: () => 
     { href: "/todos#new", label: "Новое дело", text: "Добавить в общий список", icon: ListPlus, show: featureOn(couple, "todos") },
     { href: "/talk#new", label: "Написать партнёру", text: "Сказать, спросить, предложить", icon: MessageSquarePlus, show: featureOn(couple, "talk") },
     { href: "/dashboard#block-gratitude", label: "Благодарность дня", text: "За что вы благодарны сегодня", icon: HeartHandshake, show: featureOn(couple, "gratitude") },
+    { href: "/album", label: "Добавить фото", text: "В общий альбом", icon: ImagePlus, show: featureOn(couple, "album") },
     { href: "/habits", label: "Мои привычки", text: "Отметить выполненные", icon: Target, show: featureOn(couple, "habits") },
   ];
   return (

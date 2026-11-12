@@ -34,3 +34,12 @@ export async function removeSubscription(endpoint: string) {
   const { error } = await db().from("push_subscriptions").delete().eq("endpoint", endpoint);
   if (error) throw dbError(error);
 }
+
+export type TestPushResult = { configured: boolean; android: number; web: number };
+
+/** Ставит тестовый пуш в очередь на сервере (только для текущего пользователя). */
+export async function sendTestPush(): Promise<TestPushResult> {
+  const { data, error } = await db().rpc("send_test_push");
+  if (error) throw new AppError("Проверка недоступна: примените миграцию 027_push_test.sql.");
+  return data as TestPushResult;
+}

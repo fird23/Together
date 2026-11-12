@@ -26,13 +26,49 @@ export async function currentSubscription(): Promise<PushSubscription | null> {
   return reg ? reg.pushManager.getSubscription() : null;
 }
 
+export const webPermission = (): NotificationPermission | "unsupported" => (pushSupported() ? Notification.permission : "unsupported");
+
+const DENIED = "Разрешение не выдано. Разрешите уведомления для сайта в настройках браузера (значок замка слева от адреса) и повторите.";
+
 export async function subscribePush(): Promise<PushSubscription> {
-  if (!VAPID_PUBLIC_KEY) throw new AppError("Уведомления ещё не настроены на сервере.");
+  if (!VAPID_PUBLIC_KEY) throw new AppError("Уведомления в браузере не настроены: не задан ключ VAPID (см. NOTIFICATIONS_SETUP.md).");
   const permission = await Notification.requestPermission();
-  if (permission !== "granted") throw new AppError("Разрешение не выдано. Включите уведомления для сайта в настройках браузера.");
-  await navigator.serviceWorker.register("/sw.js");
-  const reg = await navigator.serviceWorker.ready;
-  return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyToBytes(VAPID_PUBLIC_KEY) as BufferSource });
+  if (permission !== "granted") throw new AppError(DENIED);
+  let reg: ServiceWorkerRegistration;
+  try {
+    await navigator.serviceWorker.register("/sw.js");
+    reg = await navigator.serviceWorker.ready;
+  } catch {
+    throw new AppError("Не удалось запустить фоновую службу уведомлений. Откройте сайт по защищённому адресу (https) и повторите.");
+  }
+  try {
+    return await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyToBytes(VAPID_PUBLIC_KEY) as BufferSource });
+  } catch (e) {
+    const name = (e as { name?: string }).name;
+    if (name === "NotAllowedError") throw new AppError(DENIED);
+    if (name === "InvalidAccessError") throw new AppError("Ключ уведомлений на сайте задан неверно: проверьте NEXT_PUBLIC_VAPID_PUBLIC_KEY в Vercel и сделайте Redeploy.");
+    if (name === "AbortError") throw new AppError("Браузер не смог подключиться к службе уведомлений. В Brave включите «Использовать службы Google для push-сообщений» (brave://settings/privacy). В остальных браузерах проверьте, что не отключены службы Google и расширения не блокируют уведомления.");
+    throw new AppError("Не удалось подписаться на уведомления. Попробуйте ещё раз или откройте сайт в другом браузере.");
+  }
+}
+
+const sameBytes = (a: ArrayBuffer | null | undefined, b: Uint8Array) => {
+  if (!a) return false;
+  const x = new Uint8Array(a);
+  return x.length === b.length && x.every((v, i) => v === b[i]);
+};
+
+/**
+ * Для уже включённых уведомлений: возвращает актуальную подписку, чтобы заново сохранить её в базе.
+ * Если ключ VAPID на сайте сменился, подписка пересоздаётся (разрешение уже выдано, окно не появится).
+ */
+export async function refreshWebSubscription(): Promise<PushSubscription | null> {
+  if (!pushSupported() || !VAPID_PUBLIC_KEY || Notification.permission !== "granted") return null;
+  const sub = await currentSubscription();
+  if (!sub) return null;
+  if (sameBytes(sub.options?.applicationServerKey, keyToBytes(VAPID_PUBLIC_KEY))) return sub;
+  await sub.unsubscribe();
+  return subscribePush();
 }
 
 /** Отписывает это устройство и возвращает адрес подписки, чтобы удалить её из базы. */

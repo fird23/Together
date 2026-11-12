@@ -5,6 +5,8 @@ import { Logo } from "@/components/layout/logo";
 import { DesktopNav, MobileNav } from "@/components/layout/nav-links";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { UserMenu } from "@/components/layout/user-menu";
+import { NotificationBell } from "@/components/notifications/notification-bell";
+import { PullToRefresh } from "@/components/layout/pull-to-refresh";
 import { NativeSync } from "@/components/native/native-sync";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -12,12 +14,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-dvh bg-milk">
       <NativeSync />
+      <PullToRefresh />
       <header className="sticky top-0 z-20 border-b border-sand-200 bg-milk/85 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5">
           <Logo href="/dashboard" />
           <DesktopNav />
           <div className="flex items-center gap-2">
             <ThemeToggle />
+            <NotificationBell />
             <UserMenu />
           </div>
         </div>

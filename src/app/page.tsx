@@ -12,7 +12,9 @@ const points = [
 
 export default function Home() {
   return (
-    <div className="min-h-dvh bg-milk">
+    <div className="landing-root min-h-dvh bg-milk">
+      {/* В оболочке приложения прячем главную сразу, без вспышки, пока не сработает переход в пространство */}
+      <script dangerouslySetInnerHTML={{ __html: "try{var c=window.Capacitor;if(c&&c.isNativePlatform&&c.isNativePlatform())document.documentElement.classList.add('is-native')}catch(e){}" }} />
       <header className="mx-auto flex h-16 max-w-5xl items-center justify-between px-5">
         <Logo />
         <ThemeToggle />

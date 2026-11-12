@@ -117,7 +117,7 @@ export function SettingsView() {
       <nav aria-label="Разделы настроек" className="settings-chips sticky top-16 z-10 -mx-5 mb-4 overflow-x-auto border-b border-sand-200 bg-milk/90 px-5 py-2 backdrop-blur lg:hidden">
         <ul className="flex w-max gap-2">
           {nav.map(({ id, label, icon: Icon }) => (
-            <li key={id}>
+            <li key={id} className={id === "bottomnav" ? "md:hidden" : undefined}>
               <a href={`#${id}`} onClick={() => setActive(id)} aria-current={active === id ? "location" : undefined}
                 className={cn("inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-full px-3.5 text-sm font-medium transition-colors", active === id ? "bg-accent-100 text-accent-700" : "bg-sand-100 text-ink-soft")}>
                 <Icon className="size-4" aria-hidden />{label}
@@ -130,7 +130,7 @@ export function SettingsView() {
       <div className="grid items-start gap-6 lg:grid-cols-[13rem_minmax(0,1fr)]">
         <nav aria-label="Разделы настроек" className="settings-nav hidden lg:sticky lg:top-24 lg:block">
           <ul className="space-y-1">
-            {nav.map(({ id, label, icon: Icon }) => (
+            {nav.filter((n) => n.id !== "bottomnav").map(({ id, label, icon: Icon }) => (
               <li key={id}>
                 <a href={`#${id}`} onClick={() => setActive(id)} aria-current={active === id ? "location" : undefined} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-ink-soft transition-colors hover:bg-sand-100 hover:text-ink">
                   <Icon className="size-[18px]" aria-hidden /> {label}
@@ -148,9 +148,12 @@ export function SettingsView() {
             <AppearanceSettings />
           </Section>
 
-          <Section id="bottomnav" icon={PanelBottom} title="Нижняя панель" description="Какие разделы и в каком порядке показывать внизу на телефоне.">
-            <BottomNavSettings />
-          </Section>
+          {/* Нижняя панель есть только на телефоне, поэтому на компьютере этой настройки нет */}
+          <div className="md:hidden">
+            <Section id="bottomnav" icon={PanelBottom} title="Нижняя панель" description="Какие разделы и в каком порядке показывать внизу на телефоне.">
+              <BottomNavSettings />
+            </Section>
+          </div>
 
           <Section id="notifications" icon={Bell} title="Уведомления" description="О чём напоминать и куда присылать. Настройки только ваши.">
             <NotificationSettings />

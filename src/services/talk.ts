@@ -4,12 +4,29 @@ import { removeTalkImages } from "@/services/talk-media";
 import type { TalkKind, TalkReply, TalkThread } from "@/types";
 
 export async function listTalk(coupleId: string): Promise<{ threads: TalkThread[]; replies: TalkReply[] }> {
-  const [t, r] = await Promise.all([
-    db().from("talk_threads").select("id,couple_id,author_id,kind,body,resolved,created_at,media_path").eq("couple_id", coupleId).order("created_at", { ascending: false }).limit(100),
-    db().from("talk_replies").select("id,thread_id,author_id,body,created_at,media_path").eq("couple_id", coupleId).order("created_at").limit(1000),
+  // edited_at появляется после миграции 024; без неё разговоры работают как раньше, просто без пометки «изменено»
+  const query = (withEdited: boolean) => Promise.all([
+    db().from("talk_threads").select(`id,couple_id,author_id,kind,body,resolved,created_at,media_path${withEdited ? ",edited_at" : ""}`).eq("couple_id", coupleId).order("created_at", { ascending: false }).limit(100),
+    db().from("talk_replies").select(`id,thread_id,author_id,body,created_at,media_path${withEdited ? ",edited_at" : ""}`).eq("couple_id", coupleId).order("created_at").limit(1000),
   ]);
+  let [t, r] = await query(true);
+  if (t.error || r.error) [t, r] = await query(false);
   if (t.error || r.error) throw new AppError("Разговоры не готовы: примените миграцию 014_todos_talk_gratitude.sql.");
-  return { threads: (t.data ?? []) as TalkThread[], replies: (r.data ?? []) as TalkReply[] };
+  return { threads: (t.data ?? []) as unknown as TalkThread[], replies: (r.data ?? []) as unknown as TalkReply[] };
+}
+
+const EDIT_HINT = "Не удалось изменить сообщение. Примените миграцию 024_hero_blur_amount_talk_edit.sql.";
+
+/** Автор правит текст своего обращения. */
+export async function editThread(threadId: string, body: string) {
+  const { error } = await db().from("talk_threads").update({ body: body.trim(), edited_at: new Date().toISOString() }).eq("id", threadId);
+  if (error) throw new AppError(EDIT_HINT);
+}
+
+/** Автор правит текст своего ответа. */
+export async function editReply(replyId: string, body: string) {
+  const { error } = await db().from("talk_replies").update({ body: body.trim(), edited_at: new Date().toISOString() }).eq("id", replyId);
+  if (error) throw new AppError(EDIT_HINT);
 }
 
 export async function startThread(coupleId: string, userId: string, kind: TalkKind, body: string, mediaPath: string | null = null) {

@@ -4,7 +4,7 @@
  */
 const KEY = "together-dashboard-layout";
 
-export const BLOCK_IDS = ["habits", "wishlist", "todos", "talk", "gratitude", "memories", "weekly"] as const;
+export const BLOCK_IDS = ["habits", "wishlist", "todos", "talk", "gratitude", "album", "memories", "weekly"] as const;
 export type BlockId = (typeof BLOCK_IDS)[number];
 export type Layout = { order: BlockId[]; collapsed: BlockId[] };
 

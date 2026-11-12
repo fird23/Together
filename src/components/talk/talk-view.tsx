@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
-import { CheckCircle2, CloudRain, HelpCircle, ImagePlus, Lightbulb, MessageCircle, RotateCcw, Send, Trash2, X, type LucideIcon } from "lucide-react";
+import { CheckCircle2, CloudRain, HelpCircle, ImagePlus, Lightbulb, MessageCircle, Pencil, RotateCcw, Send, Trash2, X, type LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Illustration } from "@/components/ui/illustrations";
 import { FeatureOff } from "@/components/ui/feature-off";
@@ -11,8 +11,10 @@ import { useRealtime } from "@/hooks/use-realtime";
 import { GENERIC_ERROR } from "@/lib/errors";
 import { deleteThread, listTalk, reply, setResolved, startThread } from "@/services/talk";
 import { compressImage } from "@/lib/image";
+import { editReply, editThread } from "@/services/talk";
 import { removeTalkImages, talkImageUrls, uploadTalkImage } from "@/services/talk-media";
 import { featureOn } from "@/utils/features";
+import { ViewableImage } from "@/components/ui/viewable-image";
 import { cn } from "@/utils/cn";
 import type { TalkKind, TalkReply, TalkThread } from "@/types";
 
@@ -36,6 +38,8 @@ export function TalkView() {
   const [showResolved, setShowResolved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [editing, setEditing] = useState<{ kind: "thread" | "reply"; id: string } | null>(null);
+  const [editText, setEditText] = useState("");
 
   const [attachment, setAttachment] = useState<Attachment | null>(null);
   const [replyMedia, setReplyMedia] = useState<Record<string, Attachment>>({});
@@ -121,8 +125,26 @@ export function TalkView() {
     });
   };
 
+  const startEdit = (kind: "thread" | "reply", id: string, text: string) => { setEditing({ kind, id }); setEditText(text === PHOTO_TEXT ? "" : text); };
+  const saveEdit = (hasMedia: boolean) => {
+    if (!editing) return;
+    const text = editText.trim() || (hasMedia ? PHOTO_TEXT : "");
+    if (!text) return;
+    void run(async () => { await (editing.kind === "thread" ? editThread(editing.id, text) : editReply(editing.id, text)); setEditing(null); });
+  };
+  const editor = (hasMedia: boolean) => (
+    <div className="talk-edit">
+      <textarea value={editText} onChange={(e) => setEditText(e.target.value)} maxLength={1000} rows={3} autoFocus aria-label="Изменить сообщение" className="hb-input talk-edit-input"
+        onKeyDown={(e) => { if (e.key === "Escape") setEditing(null); if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveEdit(hasMedia); } }} />
+      <div className="talk-edit-actions">
+        <button type="button" className="hx-cancel" onClick={() => setEditing(null)}>Отмена</button>
+        <button type="button" className="hb-submit" onClick={() => saveEdit(hasMedia)} disabled={!editText.trim() && !hasMedia}>Сохранить</button>
+      </div>
+    </div>
+  );
+
   const photo = (path: string | null | undefined) =>
-    path && urls[path] ? <a href={urls[path]} target="_blank" rel="noreferrer" className="talk-img-link"><img src={urls[path]} alt="Фото из разговора" className="talk-img" loading="lazy" /></a> : null;
+    path && urls[path] ? <ViewableImage src={urls[path]} alt="Фото из разговора" className="talk-img-link" imgClassName="talk-img" /> : null;
 
   const renderThread = (t: TalkThread) => {
     const kindInfo = KINDS.find((k) => k.id === t.kind)!;
@@ -133,9 +155,9 @@ export function TalkView() {
       <li key={t.id} className={cn("rounded-card bg-paper p-4 shadow-soft ring-1 sm:p-5", waiting && !mine ? "ring-2 ring-accent-600" : "ring-sand-200")}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="inline-flex items-center gap-2 rounded-full bg-accent-50 px-3 py-1 text-sm font-semibold text-accent-700"><kindInfo.icon className="size-4" aria-hidden />{kindInfo.label}</span>
-          <span className="text-xs text-ink-faint">{nameOf(t.author_id)} · {when(t.created_at)}</span>
+          <span className="text-xs text-ink-faint">{nameOf(t.author_id)} · {when(t.created_at)}{t.edited_at ? " · изменено" : ""}</span>
         </div>
-        {!(t.media_path && t.body === PHOTO_TEXT) && <p className="mt-3 whitespace-pre-wrap leading-relaxed [overflow-wrap:anywhere]">{t.body}</p>}
+        {editing?.kind === "thread" && editing.id === t.id ? editor(Boolean(t.media_path)) : !(t.media_path && t.body === PHOTO_TEXT) && <p className="mt-3 whitespace-pre-wrap leading-relaxed [overflow-wrap:anywhere]">{t.body}</p>}
         {photo(t.media_path)}
         <p className="mt-2 text-xs font-semibold">
           {t.resolved ? <span className="text-success">Решено ✓</span> : waiting ? <span className={mine ? "text-ink-faint" : "text-accent-700"}>{mine ? `Ждёт ответа от ${partnerName}` : "Ждёт вашего ответа"}</span> : <span className="text-ink-faint">Идёт разговор</span>}
@@ -145,9 +167,14 @@ export function TalkView() {
           <ul className="mt-3 space-y-2 border-l-2 border-sand-200 pl-3">
             {replies.map((r) => (
               <li key={r.id} className={cn("max-w-[92%] rounded-2xl px-3.5 py-2 text-sm", r.author_id === profile.id ? "ml-auto bg-accent-100 text-ink" : "bg-sand-100 text-ink")}>
-                {!(r.media_path && r.body === PHOTO_TEXT) && <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{r.body}</p>}
+                {editing?.kind === "reply" && editing.id === r.id ? editor(Boolean(r.media_path)) : !(r.media_path && r.body === PHOTO_TEXT) && <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{r.body}</p>}
                 {photo(r.media_path)}
-                <p className="mt-0.5 text-[11px] text-ink-faint">{nameOf(r.author_id)} · {when(r.created_at)}</p>
+                <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-ink-faint">
+                  <span>{nameOf(r.author_id)} · {when(r.created_at)}{r.edited_at ? " · изменено" : ""}</span>
+                  {r.author_id === profile.id && !(editing?.kind === "reply" && editing.id === r.id) && (
+                    <button type="button" onClick={() => startEdit("reply", r.id, r.body)} aria-label="Изменить ответ" title="Изменить" className="talk-edit-btn"><Pencil size={12} aria-hidden /></button>
+                  )}
+                </p>
               </li>
             ))}
           </ul>
@@ -173,6 +200,7 @@ export function TalkView() {
 
         {mine && (
           <div className="mt-3 flex flex-wrap gap-4 border-t border-sand-100 pt-3 text-sm">
+            <button type="button" onClick={() => startEdit("thread", t.id, t.body)} className="inline-flex items-center gap-1.5 font-medium text-ink-soft hover:text-ink"><Pencil className="size-4" aria-hidden />Изменить</button>
             <button type="button" onClick={() => void run(() => setResolved(t.id, !t.resolved))} className="inline-flex items-center gap-1.5 font-medium text-ink-soft hover:text-ink">
               {t.resolved ? <><RotateCcw className="size-4" aria-hidden />Открыть снова</> : <><CheckCircle2 className="size-4" aria-hidden />Отметить решённым</>}
             </button>

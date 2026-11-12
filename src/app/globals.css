@@ -665,7 +665,7 @@ dialog.modal[open]::backdrop { animation: backdrop-in 0.2s ease-out; }
 .mood-save { display:inline-flex; height:40px; flex-shrink:0; align-items:center; gap:6px; padding:0 14px; border-radius:12px; background:var(--c-accent-600); color:var(--c-on-accent); font-size:12px; font-weight:700; transition:background .15s,opacity .15s; }
 .mood-save:hover:not(:disabled) { background:var(--c-accent-700); }
 .mood-save:disabled { opacity:.55; }
-@container (max-width:380px) { .mood-choice-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@container (max-width:250px) { .mood-choice-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 
 /* ===== Привычки: слева список, справа серии и добавление ===== */
 .habits-embedded { width:100%; max-width:none; }
@@ -697,7 +697,7 @@ button.hb-check:hover { border-color:var(--c-accent-600); }
 .hb-actions button.danger:hover { background:var(--c-danger-soft); color:var(--c-danger); }
 @media (hover:hover) {
   .hb-actions { opacity:0; transition:opacity .15s; }
-  .hb-row:hover .hb-actions, .hb-row:focus-within .hb-actions { opacity:1; }
+  .hb-row:hover .hb-actions, .hb-row:focus-within .hb-actions, li.group:hover .hb-actions, li.group:focus-within .hb-actions { opacity:1; }
 }
 .hb-empty { display:flex; flex-direction:column; align-items:center; gap:10px; padding:34px 12px 22px; color:var(--c-ink-faint); font-size:13px; line-height:1.55; text-align:center; }
 .hb-empty p { max-width:340px; margin:0; }
@@ -1048,7 +1048,7 @@ button.wishlist-check:not(:disabled):hover { border-color:var(--c-accent-600); }
 
 /* ===== Фото на карточке «Мы вместе уже» ===== */
 .hero-photo { position:absolute; inset:0; background-position:center; background-size:cover; transition:filter .3s,transform .3s; }
-.dashboard-couple-card.photo-blur .hero-photo { transform:scale(1.12); filter:blur(7px); }
+.dashboard-couple-card.photo-blur .hero-photo { transform:scale(var(--hero-scale,1.12)); filter:blur(var(--hero-blur,7px)); }
 .dashboard-couple-card.has-photo::before { display:none !important; }
 .dashboard-couple-card.has-photo .hero-venn { display:none !important; }
 .dashboard-couple-card.has-photo::after { content:""; position:absolute; inset:0; z-index:0; background:linear-gradient(180deg,rgb(8 8 20/.32),rgb(8 8 20/.58)); pointer-events:none; }
@@ -1640,3 +1640,50 @@ li.is-dragging { box-shadow:0 12px 28px rgb(0 0 0 / .18), 0 0 0 2px var(--c-acce
 .hp-chips button:hover { background:var(--c-accent-600); color:var(--c-on-accent); } .hp-chips button.ghost { background:transparent; color:var(--c-ink-faint); }
 .hp-error { margin:0; padding:10px 12px; border-radius:12px; background:var(--c-danger-soft); color:var(--c-danger); font-size:13px; }
 .hp-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:4px; }
+
+/* В приложении (Capacitor) главная-заставка скрыта: сразу переходим в пространство */
+html.is-native .landing-root { visibility:hidden; }
+
+/* ---- Размытие фото: ползунок ---- */
+.hero-photo-thumb { position:relative; overflow:hidden; }
+.hero-photo-thumb i { position:absolute; inset:0; background-position:center; background-size:cover; transition:filter .15s,transform .15s; }
+.hero-blur-value { min-width:34px; padding:2px 10px; border-radius:999px; background:var(--c-accent-100); color:var(--c-accent-700); font-size:12px; font-weight:800; text-align:center; }
+.hero-blur-range { display:block; width:100%; height:32px; margin-top:10px; accent-color:var(--c-accent-600); cursor:pointer; }
+.hero-blur-range:disabled { opacity:.4; cursor:default; }
+.hero-blur-scale { display:flex; justify-content:space-between; color:var(--c-ink-faint); font-size:11px; }
+
+/* ---- Поля комментариев на телефоне: читаемый текст (16px, без увеличения экрана в Safari), поле растёт по мере набора ---- */
+.mood-note-input { field-sizing:content; max-height:120px; overflow-y:auto; }
+@media (max-width:640px) {
+  .mood-note-input, input.hb-input, textarea.hb-input, .wishlist-form > input { font-size:16px !important; line-height:22px; }
+  .mood-note-input { min-height:44px; height:auto; padding:10px 12px; }
+  .mood-note-action-row { flex-direction:column; }
+  .mood-note-action-row .mood-save { width:100%; min-height:44px; justify-content:center; }
+}
+
+/* ---- Разговоры: правка сообщения ---- */
+.talk-edit { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
+.talk-edit-input { height:auto !important; min-height:84px; padding:10px 12px; resize:vertical; line-height:1.5; }
+.talk-edit-actions { display:flex; justify-content:flex-end; gap:8px; }
+.talk-edit-btn { display:inline-grid; width:26px; height:26px; place-items:center; border-radius:8px; color:var(--c-ink-faint); }
+.talk-edit-btn:hover { background:color-mix(in srgb,var(--c-ink) 8%,transparent); color:var(--c-ink); }
+
+/* ---- Разговоры: правка сообщения ---- */
+.talk-edit { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
+.talk-edit-input { height:auto !important; min-height:84px; padding:10px 12px; resize:vertical; line-height:1.5; }
+.talk-edit-actions { display:flex; justify-content:flex-end; gap:8px; }
+.talk-edit-btn { display:inline-grid; width:26px; height:26px; place-items:center; border-radius:8px; color:var(--c-ink-faint); }
+.talk-edit-btn:hover { background:color-mix(in srgb,var(--c-ink) 8%,transparent); color:var(--c-ink); }
+
+/* ---- Потянуть вниз, чтобы обновить (телефон) ---- */
+.ptr { position:fixed; top:calc(env(safe-area-inset-top,0px) + 64px); left:50%; z-index:60; display:grid; width:40px; height:40px; place-items:center; border-radius:50%; background:var(--c-paper); color:var(--c-accent-700); box-shadow:0 4px 14px rgb(0 0 0 / .18); pointer-events:none; }
+@media (pointer:coarse) { html { overscroll-behavior-y:contain; } }
+
+/* ---- Привычки: медали и переключатель периода ---- */
+.hx-medals { justify-content:space-between; }
+.hx-medal { flex:1 1 0; min-width:46px; max-width:72px; }
+@media (max-width:639px) { .hx-seg.small { width:100%; } .hx-seg.small button { flex:1; } }
+
+/* ===== Просмотр фото на весь экран ===== */
+.viewer-btn { display:grid; width:40px; height:40px; flex-shrink:0; place-items:center; border-radius:50%; color:#fff; transition:background .15s; }
+.viewer-btn:hover, .viewer-btn:focus-visible { background:rgb(255 255 255 / .16); outline:none; }

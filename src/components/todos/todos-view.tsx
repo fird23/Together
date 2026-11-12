@@ -298,7 +298,7 @@ export function TodosView() {
             <input
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              placeholder="Комментарий к делу (необязательно)…"
+              placeholder="Комментарий к делу…"
               className="hb-input text-xs"
             />
 

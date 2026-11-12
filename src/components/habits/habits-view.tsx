@@ -136,7 +136,7 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
     setSaving(true); setError("");
     const { error: insertError } = await supabase.from("habits").insert({
       couple_id: couple.id, owner_id: draft.scope === "personal" ? profile.id : null,
-      scope: draft.scope, title: draft.title.trim(), color: draft.color, icon: draft.icon, ...scheduleColumns(draft), ...targetColumns(draft),
+      scope: draft.scope, title: draft.title.trim(), color: draft.color, icon: draft.icon, ...scheduleColumns(draft), ...(draft.kind === "number" ? targetColumns(draft) : {}),
     });
     if (insertError) setError(draft.kind === "number" ? "Не удалось создать привычку с числом. Проверьте, что применена миграция 023_habit_targets_and_moods.sql." : "Не удалось создать привычку.");
     else { setDraft(emptyDraft()); setShowAdd(false); await load(); }
@@ -192,7 +192,8 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
 
   const saveEdit = async (id: string, d: HabitDraft) => {
     if (!supabase) return;
-    const { error: updateError } = await supabase.from("habits").update({ title: d.title.trim(), color: d.color, icon: d.icon, ...scheduleColumns(d), ...targetColumns(d) }).eq("id", id);
+    const hadTarget = Boolean(habits.find((h) => h.id === id)?.target_value);
+    const { error: updateError } = await supabase.from("habits").update({ title: d.title.trim(), color: d.color, icon: d.icon, ...scheduleColumns(d), ...(d.kind === "number" || hadTarget ? targetColumns(d) : {}) }).eq("id", id);
     if (updateError) throw new Error("update failed");
     await load(true);
   };

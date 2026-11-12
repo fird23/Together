@@ -31,3 +31,13 @@ export async function heroPhotoUrl(path: string): Promise<string | null> {
   const { data, error } = await db().storage.from(HERO_BUCKET).createSignedUrl(path, 3600);
   return error ? null : data.signedUrl;
 }
+
+/** Сила размытия в пикселях: новая настройка, а если её нет, прежний переключатель (7 пикселей или без размытия). */
+export const heroBlurPx = (couple: { hero_photo_blur?: boolean; hero_photo_blur_amount?: number | null }): number =>
+  typeof couple.hero_photo_blur_amount === "number" ? couple.hero_photo_blur_amount : couple.hero_photo_blur !== false ? 7 : 0;
+
+export async function setHeroBlurAmount(coupleId: string, amount: number) {
+  const value = Math.max(0, Math.min(24, Math.round(amount)));
+  const { data, error } = await db().from("couples").update({ hero_photo_blur_amount: value, hero_photo_blur: value > 0, updated_at: new Date().toISOString() }).eq("id", coupleId).select("id");
+  if (error || !data?.length) throw new AppError("Не удалось сохранить размытие. Примените миграцию 024_hero_blur_amount_talk_edit.sql.");
+}

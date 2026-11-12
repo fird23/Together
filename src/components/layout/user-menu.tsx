@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { LifeBuoy, LogOut, Settings, UserRound, type LucideIcon } from "lucide-react";
+import { LifeBuoy, LogOut, Settings, ShieldCheck, UserRound, type LucideIcon } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { useWorkspace } from "@/components/providers/workspace-provider";
+import { isAdmin } from "@/services/admin";
 
 const links: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/profile", label: "Профиль", icon: UserRound },
@@ -24,6 +25,7 @@ export function UserMenu() {
   const name = profile?.display_name ?? (session?.user.user_metadata?.display_name as string | undefined) ?? "Вы";
   const [open, setOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [admin, setAdmin] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const timer = useRef<number | null>(null);
 
@@ -31,6 +33,12 @@ export function UserMenu() {
   const show = () => { cancelClose(); setOpen(true); };
   const hideSoon = () => { cancelClose(); timer.current = window.setTimeout(() => setOpen(false), 180); };
   const canHover = () => window.matchMedia("(hover: hover)").matches;
+
+  useEffect(() => {
+    let alive = true;
+    void isAdmin().then((ok) => { if (alive) setAdmin(ok); });
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -79,7 +87,7 @@ export function UserMenu() {
               </div>
             </div>
             <div className="border-t border-sand-200 pt-2">
-              {links.map(({ href, label, icon: Icon }) => (
+              {(admin ? [...links, { href: "/admin", label: "Админ-панель", icon: ShieldCheck }] : links).map(({ href, label, icon: Icon }) => (
                 <Link key={href} href={href} role="menuitem" className={itemClass} onClick={() => setOpen(false)}>
                   <Icon className="size-[18px]" aria-hidden /> {label}
                 </Link>

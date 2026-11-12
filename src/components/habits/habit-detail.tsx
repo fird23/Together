@@ -216,12 +216,6 @@ function Body({ habit, checkins, freezes, me, partner, onToggleDay, onOpenGlobal
         </div>
       </div>
 
-      <div className="hd-legend flex items-center gap-4 mt-3 text-xs text-ink-faint">
-        <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-xs bg-accent-600 inline-block" /> выполнено</span>
-        <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-xs bg-blue-400 inline-block" /> заморожено</span>
-        <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-xs bg-sand-200 inline-block" /> пропуск</span>
-      </div>
-
       <div className="hd-charts grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5 pt-4 border-t border-sand-200">
         <div>
           <h4 className="hd-title text-xs font-semibold mb-2 text-ink-soft">По неделям</h4>

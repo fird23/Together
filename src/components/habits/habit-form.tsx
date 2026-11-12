@@ -171,7 +171,7 @@ function EditBody({ habit, onClose, onSave }: { habit: HabitLike; onClose: () =>
     const problem = validateDraft(draft);
     if (problem) return setError(problem);
     setPending(true); setError("");
-    try { await onSave(draft); onClose(); } catch { setError("Не удалось сохранить привычку."); setPending(false); }
+    try { await onSave(draft); onClose(); } catch { setError(draft.kind === "number" ? "Не удалось сохранить. Для привычек с числом нужна миграция 023_habit_targets_and_moods.sql." : "Не удалось сохранить привычку. Попробуйте ещё раз."); setPending(false); }
   }
 
   return (

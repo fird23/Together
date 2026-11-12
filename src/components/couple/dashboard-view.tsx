@@ -20,10 +20,12 @@ import { GratitudeCard } from "@/components/gratitude/gratitude-card";
 import { DashboardSection } from "@/components/couple/dashboard-section";
 import { TodosPreview } from "@/components/todos/todos-preview";
 import { TalkPreview } from "@/components/talk/talk-preview";
+import { AlbumPreview } from "@/components/album/album-preview";
 import { MemoriesCard } from "@/components/couple/memories-card";
 import { WeeklySummary } from "@/components/couple/weekly-summary";
 import { useDashboardLayout } from "@/hooks/use-dashboard-layout";
 import { moveBlock, reorderBlock, resetLayout, toggleCollapsed, type BlockId } from "@/lib/layout-store";
+import { NotificationBanner } from "@/components/notifications/notification-banner";
 import { WelcomeTour } from "@/components/couple/welcome-tour";
 import { featureOn, type FeatureKey } from "@/utils/features";
 import { formatDateRu } from "@/utils/days";
@@ -68,6 +70,7 @@ export function DashboardView() {
     todos: { eyebrow: "ОБЩИЕ ДЕЛА И ПЛАНЫ", title: "Список дел", hint: "Что нужно сделать вам двоим", className: "dashboard-todos-section", feature: "todos", node: <TodosPreview /> },
     talk: { eyebrow: "СКАЗАТЬ, СПРОСИТЬ, ПРЕДЛОЖИТЬ", title: "Разговоры", hint: "Обращения друг к другу и ответы", className: "dashboard-talk-section", feature: "talk", node: <TalkPreview /> },
     gratitude: { eyebrow: "МАЛЕНЬКИЕ СЛОВА ВАЖНЫ", title: "Благодарности", hint: "Одна строка в день", className: "dashboard-gratitude-section", feature: "gratitude", node: <GratitudeCard /> },
+    album: { eyebrow: "ОБЩИЕ МОМЕНТЫ", title: "Фотоальбом", hint: "Ваши фотографии на двоих", className: "dashboard-album-section", feature: "album", node: <AlbumPreview /> },
     memories: { eyebrow: "ЧТО БЫЛО В ЭТОТ ДЕНЬ", title: "Воспоминания", hint: "Месяц, полгода, год назад", className: "dashboard-memories-section", feature: "memories", node: <MemoriesCard /> },
     weekly: { eyebrow: "ЗА ПОСЛЕДНИЕ 7 ДНЕЙ", title: "Итоги недели", hint: "Как прошла неделя у вас обоих", className: "dashboard-weekly-section", feature: "weekly", node: <WeeklySummary /> },
   };
@@ -75,6 +78,7 @@ export function DashboardView() {
 
   return (
     <div className="dashboard-page">
+      <NotificationBanner />
       <header className="dashboard-welcome">
         <div>
           <p className="eyebrow"><Heart size={13} fill="currentColor" /> ВАШЕ ОБЩЕЕ ПРОСТРАНСТВО</p>
