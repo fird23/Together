@@ -1,12 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CheckCheck, Heart, ListChecks, Target } from "lucide-react";
+import { CheckCheck, ChevronLeft, ChevronRight, Heart, ListChecks, RotateCcw, Target } from "lucide-react";
 import { MoodIcon } from "@/components/mood/mood-icons";
 import { useWorkspace } from "@/components/providers/workspace-provider";
+import { useWeeklyLayout } from "@/hooks/use-weekly-layout";
+import { SIZES, isWeeklyDefault, moveTile, resetWeeklyLayout, setTileSize, type TileId, type TileSize } from "@/lib/weekly-layout-store";
 import { db } from "@/lib/supabase";
 import { addDays, todayISO } from "@/utils/days";
 import { featureOn } from "@/utils/features";
+import { cn } from "@/utils/cn";
 
 type Stats = {
   habitPct: { me: number; partner: number } | null;
@@ -22,11 +25,14 @@ function Pair({ me, partnerValue, partnerName }: { me: number; partnerValue: num
   return <p className="ws-pair"><span><b>{me}</b> вы</span><span><b>{partnerValue}</b> {partnerName}</span></p>;
 }
 
+const SIZE_LABEL: Record<TileSize, string> = { compact: "Компактный", normal: "Обычный", wide: "Широкий" };
+
 const weekday = (iso: string) => new Intl.DateTimeFormat("ru-RU", { weekday: "short", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
 
 /** Итоги последних 7 дней: привычки, дела, настроение и благодарности у вас обоих. */
-export function WeeklySummary() {
+export function WeeklySummary({ editing = false }: { editing?: boolean }) {
   const { couple, profile, partner } = useWorkspace();
+  const layout = useWeeklyLayout();
   const [stats, setStats] = useState<Stats | null>(null);
   const days = Array.from({ length: 7 }, (_, i) => addDays(todayISO(), i - 6));
 
@@ -75,31 +81,67 @@ export function WeeklySummary() {
   if (!stats) return <p className="text-sm text-ink-soft">Считаем итоги…</p>;
   const partnerName = partner?.display_name ?? "Партнёр";
 
+  const tiles: Partial<Record<TileId, { label: string; body: React.ReactNode }>> = {};
+  if (featureOn(couple, "habits") && stats.habitPct) {
+    tiles.habits = { label: "Привычки", body: <><h3><Target size={15} /> Привычки</h3><Bar label="Вы" value={stats.habitPct.me} /><Bar label={partnerName} value={stats.habitPct.partner} /></> };
+  }
+  if (featureOn(couple, "todos")) {
+    tiles.todos = { label: "Сделано дел", body: <><h3><ListChecks size={15} /> Сделано дел</h3><p className="ws-big">{stats.todos.me + stats.todos.partner}</p><Pair me={stats.todos.me} partnerValue={stats.todos.partner} partnerName={partnerName} /></> };
+  }
+  if (featureOn(couple, "gratitude")) {
+    tiles.gratitude = { label: "Благодарности", body: <><h3><Heart size={15} /> Благодарности</h3><p className="ws-big">{stats.gratitude.me + stats.gratitude.partner}</p><Pair me={stats.gratitude.me} partnerValue={stats.gratitude.partner} partnerName={partnerName} /></> };
+  }
+  tiles.moods = {
+    label: "Настроение",
+    body: (
+      <>
+        <h3><CheckCheck size={15} /> Настроение</h3>
+        {([["Вы", stats.moods.me], [partnerName, stats.moods.partner]] as const).map(([name, map]) => (
+          <div className="ws-mood-row" key={name}>
+            <span className="ws-mood-name">{name}</span>
+            <span className="ws-mood-days">
+              {days.map((d) => <span key={d} title={`${weekday(d)}: ${map[d] ? "" : "нет отметки"}`}>{map[d] ? <MoodIcon mood={map[d]} size={22} /> : <i />}</span>)}
+            </span>
+          </div>
+        ))}
+        <div className="ws-mood-row"><span className="ws-mood-name" /><span className="ws-mood-days ws-days-label">{days.map((d) => <span key={d}>{weekday(d)}</span>)}</span></div>
+      </>
+    ),
+  };
+  const visible = layout.order.filter((id) => tiles[id]);
+
   return (
     <div className="weekly-summary dashboard-card">
       <p className="ws-range">Последние 7 дней · {days[0].slice(8)}.{days[0].slice(5, 7)} — {days[6].slice(8)}.{days[6].slice(5, 7)}</p>
-      <div className="ws-grid">
-        {featureOn(couple, "habits") && stats.habitPct && (
-          <div className="ws-tile"><h3><Target size={15} /> Привычки</h3><Bar label="Вы" value={stats.habitPct.me} /><Bar label={partnerName} value={stats.habitPct.partner} /></div>
-        )}
-        {featureOn(couple, "todos") && (
-          <div className="ws-tile"><h3><ListChecks size={15} /> Сделано дел</h3><p className="ws-big">{stats.todos.me + stats.todos.partner}</p><Pair me={stats.todos.me} partnerValue={stats.todos.partner} partnerName={partnerName} /></div>
-        )}
-        {featureOn(couple, "gratitude") && (
-          <div className="ws-tile"><h3><Heart size={15} /> Благодарности</h3><p className="ws-big">{stats.gratitude.me + stats.gratitude.partner}</p><Pair me={stats.gratitude.me} partnerValue={stats.gratitude.partner} partnerName={partnerName} /></div>
-        )}
-        <div className="ws-tile ws-moods">
-          <h3><CheckCheck size={15} /> Настроение</h3>
-          {([["Вы", stats.moods.me], [partnerName, stats.moods.partner]] as const).map(([name, map]) => (
-            <div className="ws-mood-row" key={name}>
-              <span className="ws-mood-name">{name}</span>
-              <span className="ws-mood-days">
-                {days.map((d) => <span key={d} title={`${weekday(d)}: ${map[d] ? "" : "нет отметки"}`}>{map[d] ? <MoodIcon mood={map[d]} size={22} /> : <i />}</span>)}
-              </span>
-            </div>
-          ))}
-          <div className="ws-mood-row"><span className="ws-mood-name" /><span className="ws-mood-days ws-days-label">{days.map((d) => <span key={d}>{weekday(d)}</span>)}</span></div>
+      {editing && (
+        <div className="ws-edit-bar">
+          <p>Двигайте плитки стрелками и выбирайте размер. Настройка хранится на этом устройстве.</p>
+          <button type="button" onClick={resetWeeklyLayout} disabled={isWeeklyDefault(layout)}><RotateCcw size={14} /> Вернуть как было</button>
         </div>
+      )}
+      <div className="ws-grid">
+        {visible.map((id, index) => {
+          const size = layout.sizes[id];
+          const tile = tiles[id]!;
+          return (
+            <div key={id} className={cn("ws-tile", `ws-${size}`, id === "moods" && "ws-moods", editing && "is-editing")}>
+              {tile.body}
+              {editing && (
+                <div className="ws-tools" role="group" aria-label={`Плитка «${tile.label}»`}>
+                  <span className="ws-move">
+                    <button type="button" onClick={() => moveTile(id, -1, visible)} disabled={index === 0} aria-label={`Сдвинуть «${tile.label}» раньше`}><ChevronLeft size={16} /></button>
+                    <button type="button" onClick={() => moveTile(id, 1, visible)} disabled={index === visible.length - 1} aria-label={`Сдвинуть «${tile.label}» позже`}><ChevronRight size={16} /></button>
+                  </span>
+                  <span className="ws-sizes" role="radiogroup" aria-label="Размер плитки">
+                    {SIZES.map((sz) => (
+                      <button key={sz} type="button" role="radio" aria-checked={size === sz} className={size === sz ? "on" : ""} onClick={() => setTileSize(id, sz)}>{SIZE_LABEL[sz]}</button>
+                    ))}
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

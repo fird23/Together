@@ -43,8 +43,9 @@ export function statusCopy(status: PushStatus, native: boolean): { title: string
       : { title: "Уведомления запрещены в браузере", text: "Нажмите на значок замка слева от адреса сайта, в пункте «Уведомления» выберите «Разрешить» и обновите страницу." };
     case "ios-install": return { title: "Нужна установка на экран «Домой»", text: "На iPhone и iPad уведомления работают только у приложения на экране «Домой»: в Safari нажмите «Поделиться» → «На экран “Домой”», откройте Together оттуда и включите уведомления." };
     case "unsupported": return { title: "Браузер не поддерживает уведомления", text: "Откройте Together в актуальной версии Chrome, Edge, Firefox или Safari." };
-    case "unconfigured": return { title: "Уведомления в браузере не подключены", text: "Нужны ключи VAPID: шаги в NOTIFICATIONS_SETUP.md. На телефоне пользуйтесь приложением для Android: уведомления включаются в нём." };
-    case "native-unavailable": return { title: "В этой сборке приложения нет Firebase", text: "Подключите Firebase (google-services.json) и пересоберите приложение: шаг «Уведомления» в NOTIFICATIONS_SETUP.md." };
+    // Служебные состояния (не хватает ключей или Firebase) пользователю не показываем: подсказки для настройки есть в NOTIFICATIONS_SETUP.md.
+    case "unconfigured":
+    case "native-unavailable": return { title: "", text: "" };
     default: return { title: "", text: "" };
   }
 }

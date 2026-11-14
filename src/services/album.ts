@@ -31,8 +31,8 @@ const localDay = (ms: number) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
-/** Сжимает фото, загружает оригинал и миниатюру и создаёт запись. Дата берётся из файла (обычно это дата съёмки). */
-export async function uploadAlbumPhoto(coupleId: string, userId: string, file: File): Promise<void> {
+/** Сжимает фото, загружает оригинал и миниатюру и создаёт запись. `takenOn` (YYYY-MM-DD): день, к которому привязано фото. */
+export async function uploadAlbumPhoto(coupleId: string, userId: string, file: File, takenOn?: string): Promise<void> {
   const full = await compressImage(file, { maxSide: 2200, maxBytes: 1_800_000 });
   const thumb = await compressImage(file, { maxSide: 520, maxBytes: 140_000 });
   const id = crypto.randomUUID();
@@ -50,7 +50,7 @@ export async function uploadAlbumPhoto(coupleId: string, userId: string, file: F
     uploaded_by: userId,
     media_path: mediaPath,
     thumb_path: thumbPath,
-    taken_on: file.lastModified ? localDay(file.lastModified) : localDay(Date.now()),
+    taken_on: takenOn && /^\d{4}-\d{2}-\d{2}$/.test(takenOn) ? takenOn : file.lastModified ? localDay(file.lastModified) : localDay(Date.now()),
   });
   if (error) { await storage.remove([mediaPath, thumbPath]); throw dbError(error); }
 }

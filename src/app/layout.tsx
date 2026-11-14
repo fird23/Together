@@ -1,4 +1,5 @@
 import { NativeBridge } from "@/components/native/native-bridge";
+import { KeyboardAware } from "@/components/layout/keyboard-aware";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { themeInitScript } from "@/lib/theme-script";
@@ -13,6 +14,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#F7F5EC",
+  // Android: при открытии клавиатуры страница уменьшается, а не прячется под ней
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -23,6 +26,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       </head>
       <body>
         <NativeBridge />
+        <KeyboardAware />
         <WorkspaceProvider>{children}</WorkspaceProvider>
       </body>
     </html>

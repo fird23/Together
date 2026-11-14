@@ -7,7 +7,8 @@ import { GENERIC_ERROR } from "@/lib/errors";
 import { albumCount, albumUrls, listAlbum, uploadAlbumPhoto } from "@/services/album";
 import type { AlbumPhoto } from "@/types";
 
-const MAX_FILES = 30;
+export const MAX_ALBUM_FILES = 30;
+const MAX_FILES = MAX_ALBUM_FILES;
 
 /** Фото альбома (всё или последние `limit`), ссылки на миниатюры и общее число. Обновляется, когда партнёр добавляет фото. */
 export function useAlbum(limit?: number) {
@@ -44,15 +45,17 @@ export function useAlbum(limit?: number) {
   return { photos, thumbs, total, error, reload: load };
 }
 
-/** Загрузка нескольких фото по очереди с прогрессом. */
+export type AlbumUploadItem = { file: File; takenOn: string };
+
+/** Загрузка нескольких фото по очереди с прогрессом. Каждое фото ставится на свою дату. */
 export function useAlbumUpload(onUploaded: () => void) {
   const { couple, profile } = useWorkspace();
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState("");
 
-  const run = useCallback(async (files: File[]) => {
-    if (!couple || !profile || files.length === 0) return;
-    const images = files.filter((f) => f.type.startsWith("image/"));
+  const run = useCallback(async (items: AlbumUploadItem[]) => {
+    if (!couple || !profile || items.length === 0) return;
+    const images = items.filter((i) => i.file.type.startsWith("image/"));
     if (images.length === 0) { setError("Выберите фотографии: файлы других типов не подойдут."); return; }
     const batch = images.slice(0, MAX_FILES);
     setError("");
@@ -60,13 +63,13 @@ export function useAlbumUpload(onUploaded: () => void) {
     let firstError = "";
     for (let i = 0; i < batch.length; i++) {
       setProgress({ done: i, total: batch.length });
-      try { await uploadAlbumPhoto(couple.id, profile.id, batch[i]); }
+      try { await uploadAlbumPhoto(couple.id, profile.id, batch[i].file, batch[i].takenOn); }
       catch (e) { failed++; if (!firstError) firstError = e instanceof Error ? e.message : GENERIC_ERROR; }
     }
     setProgress(null);
     const notes: string[] = [];
     if (images.length > MAX_FILES) notes.push(`За один раз загружается до ${MAX_FILES} фото, остальные выберите ещё раз.`);
-    if (images.length < files.length) notes.push("Файлы, которые не являются фотографиями, пропущены.");
+    if (images.length < items.length) notes.push("Файлы, которые не являются фотографиями, пропущены.");
     if (failed > 0) notes.push(`Не загрузилось: ${failed} из ${batch.length}. ${firstError}`);
     setError(notes.join(" "));
     onUploaded();

@@ -2,18 +2,22 @@
 
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { CalendarDays, Check, Repeat, Trash2, Type } from "lucide-react";
+import { CalendarDays, Check, Clock, Repeat, Trash2, Type } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/field";
 import { Alert } from "@/components/ui/alert";
 import { GENERIC_ERROR } from "@/lib/errors";
-import { EVENT_COLORS, REPEAT_LABELS } from "@/utils/calendar";
+import { EVENT_COLORS, REPEAT_LABELS, timeToMin } from "@/utils/calendar";
 import { daysTogether } from "@/utils/days";
 import type { EventColor, EventRepeat } from "@/types";
 import type { EventInput } from "@/services/calendar";
 
-export type EventDraft = { id?: string; title: string; note: string; color: EventColor; start: string; end: string; repeat: EventRepeat };
+export type EventDraft = {
+  id?: string; title: string; note: string; color: EventColor; start: string; end: string; repeat: EventRepeat;
+  /** Пометка на весь день (по умолчанию) или событие со временем, которое видно блоком в недельном виде. */
+  allDay?: boolean; startTime?: string; endTime?: string;
+};
 
 const dayCount = (a: string, b: string) => daysTogether(a, new Date(`${b}T12:00:00`)) + 1;
 
@@ -59,6 +63,9 @@ function EventForm({
   const [start, setStart] = useState(draft.start);
   const [end, setEnd] = useState(draft.end);
   const [repeat, setRepeat] = useState<EventRepeat>(draft.repeat);
+  const [allDay, setAllDay] = useState(draft.allDay ?? true);
+  const [startTime, setStartTime] = useState(draft.startTime ?? "09:00");
+  const [endTime, setEndTime] = useState(draft.endTime ?? "10:00");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
 
@@ -66,10 +73,19 @@ function EventForm({
     event.preventDefault();
     if (!title.trim()) return setError("Напишите название пометки.");
     if (!start || !end) return setError("Укажите даты.");
-    if (end < start) return setError("Дата окончания раньше даты начала.");
+    if (!allDay) {
+      if (!startTime || !endTime) return setError("Укажите время начала и конца.");
+      if (timeToMin(endTime) <= timeToMin(startTime)) return setError("Время окончания должно быть позже начала. Событие на ночь разделите на два дня.");
+    } else if (end < start) return setError("Дата окончания раньше даты начала.");
     setPending(true); setError("");
     try {
-      await onSave({ title, note, color, start, end, repeat }, draft.id);
+      const wasTimed = Boolean(draft.id && draft.startTime && draft.allDay === false);
+      await onSave(
+        allDay
+          ? { title, note, color, start, end, repeat, clearTime: wasTimed }
+          : { title, note, color, start, end: start, repeat, startTime, endTime },
+        draft.id,
+      );
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : GENERIC_ERROR);
@@ -92,11 +108,28 @@ function EventForm({
   return (
     <form onSubmit={submit} noValidate className="space-y-4">
       <TextField label="Название" icon={Type} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={60} placeholder="Например, поездка на море" autoFocus disabled={pending} />
-      <div className="grid grid-cols-2 gap-3">
-        <TextField label="С" type="date" icon={CalendarDays} value={start} onChange={(e) => { setStart(e.target.value); if (end < e.target.value) setEnd(e.target.value); }} disabled={pending} />
-        <TextField label="По" type="date" icon={CalendarDays} value={end} min={start} onChange={(e) => setEnd(e.target.value)} disabled={pending} />
+      <div>
+        <label className="flex cursor-pointer items-center gap-3 text-sm font-medium">
+          <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} disabled={pending} className="size-5 shrink-0 accent-[var(--c-accent-600)]" />
+          Весь день
+        </label>
+        <p className="mt-1 text-xs text-ink-faint">{allDay ? "Пометка на день или на несколько дней подряд." : "Событие со временем: в недельном виде это блок по часам."}</p>
       </div>
-      {start && end && end >= start && <p className="-mt-2 text-sm text-ink-soft">{dayCount(start, end) === 1 ? "Один день" : `Дней подряд: ${dayCount(start, end)}`}</p>}
+      {allDay ? (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <TextField label="С" type="date" icon={CalendarDays} value={start} onChange={(e) => { setStart(e.target.value); if (end < e.target.value) setEnd(e.target.value); }} disabled={pending} />
+            <TextField label="По" type="date" icon={CalendarDays} value={end} min={start} onChange={(e) => setEnd(e.target.value)} disabled={pending} />
+          </div>
+          {start && end && end >= start && <p className="-mt-2 text-sm text-ink-soft">{dayCount(start, end) === 1 ? "Один день" : `Дней подряд: ${dayCount(start, end)}`}</p>}
+        </>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="col-span-2"><TextField label="День" type="date" icon={CalendarDays} value={start} onChange={(e) => { setStart(e.target.value); setEnd(e.target.value); }} disabled={pending} /></div>
+          <TextField label="Начало" type="time" step={900} icon={Clock} value={startTime} onChange={(e) => setStartTime(e.target.value)} disabled={pending} />
+          <TextField label="Конец" type="time" step={900} icon={Clock} value={endTime} onChange={(e) => setEndTime(e.target.value)} disabled={pending} />
+        </div>
+      )}
 
       <div>
         <label htmlFor="event-repeat" className="mb-1.5 flex items-center gap-1.5 text-sm font-medium"><Repeat className="size-4 text-ink-faint" aria-hidden /> Повтор</label>

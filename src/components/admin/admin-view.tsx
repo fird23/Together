@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Bug, HelpCircle, Lightbulb, MessageCircle, Send, type LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Alert } from "@/components/ui/alert";
+import { TicketAttachments } from "@/components/support/ticket-attachments";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { GENERIC_ERROR } from "@/lib/errors";
@@ -209,6 +210,7 @@ function TicketItem({ ticket: t, onChanged }: { ticket: AdminTicket; onChanged: 
         {t.display_name ?? "—"} · {t.email ?? "—"} · {fmt(t.created_at)}
       </p>
       <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{t.message}</p>
+      <TicketAttachments paths={t.attachments} />
 
       {t.meta && (
         <div className="mt-2">

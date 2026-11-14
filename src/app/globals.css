@@ -897,7 +897,7 @@ button.wishlist-check:not(:disabled):hover { border-color:var(--c-accent-600); }
 /* ===== Итоги недели ===== */
 .weekly-summary { padding:18px 20px; }
 .ws-range { margin:0 0 14px; color:var(--c-ink-faint); font-size:12px; }
-.ws-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px; }
+.ws-grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:12px; }
 .ws-tile { padding:14px 16px; border-radius:16px; background:var(--c-milk); }
 .ws-tile h3 { display:flex; align-items:center; gap:6px; margin:0 0 10px; color:var(--c-ink-soft); font-size:12px; font-weight:700; }
 .ws-tile h3 svg { color:var(--c-accent-600); }
@@ -909,7 +909,7 @@ button.wishlist-check:not(:disabled):hover { border-color:var(--c-accent-600); }
 .ws-bar i { flex:1; height:7px; overflow:hidden; border-radius:99px; background:var(--c-sand-200); }
 .ws-bar i b { display:block; height:100%; border-radius:inherit; background:var(--c-accent-600); transition:width .6s; }
 .ws-bar em { min-width:32px; color:var(--c-ink); font-style:normal; font-weight:700; text-align:right; font-variant-numeric:tabular-nums; }
-.ws-moods { grid-column:1 / -1; }
+
 .ws-mood-row { display:flex; align-items:center; gap:10px; margin-top:6px; }
 .ws-mood-name { width:62px; overflow:hidden; color:var(--c-ink-soft); font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
 .ws-mood-days { display:grid; flex:1; max-width:420px; grid-template-columns:repeat(7,1fr); justify-items:center; gap:4px; }
@@ -1687,3 +1687,136 @@ html.is-native .landing-root { visibility:hidden; }
 /* ===== Просмотр фото на весь экран ===== */
 .viewer-btn { display:grid; width:40px; height:40px; flex-shrink:0; place-items:center; border-radius:50%; color:#fff; transition:background .15s; }
 .viewer-btn:hover, .viewer-btn:focus-visible { background:rgb(255 255 255 / .16); outline:none; }
+
+/* ===== Вишлисты: сворачивание отдельных желаний ===== */
+.wishlist-fold-all { display:flex; justify-content:flex-end; margin-top:10px; }
+.wishlist-fold-all button { display:inline-flex; align-items:center; gap:5px; padding:6px 10px; border-radius:9px; color:var(--c-ink-soft); font-size:12px; font-weight:600; }
+.wishlist-fold-all button:hover { background:var(--c-sand-100); color:var(--c-ink); }
+.wishlist-toggle { display:grid; width:32px; height:32px; flex-shrink:0; place-items:center; border-radius:10px; color:var(--c-ink-faint); transition:background .15s, color .15s; }
+.wishlist-toggle:hover, .wishlist-toggle:focus-visible { background:var(--c-sand-100); color:var(--c-ink); outline:none; }
+.wishlist-toggle svg { transition:transform .2s; }
+.wishlist-toggle[aria-expanded="false"] svg { transform:rotate(-90deg); }
+.wishlist-item-copy small.wishlist-summary { color:var(--c-ink-faint); font-size:10px; }
+@media (pointer:coarse) { .wishlist-toggle { width:40px; height:40px; } .wishlist-fold-all button { padding:9px 12px; font-size:13px; } }
+
+/* ===== Телефон: поля ввода и экранная клавиатура ===== */
+/* Нижняя панель не занимает место над клавиатурой */
+html[data-kb="open"] .kb-hide { display:none !important; }
+/* Запас снизу: последнее поле можно прокрутить выше клавиатуры (когда браузер не уменьшает страницу сам) */
+html[data-kb="open"] body { padding-bottom:var(--kb-inset,0px); }
+/* Диалоги не выше видимой области и не уходят под клавиатуру */
+dialog.modal { max-height:calc(var(--vvh,100dvh) - 1rem); overflow-y:auto; overscroll-behavior:contain; }
+html[data-kb="open"] dialog.modal { margin-block:.5rem auto; transform:translateY(var(--vv-top,0px)); }
+/* 16 px в полях: iPhone не приближает страницу при вводе */
+@media (pointer:coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="button"]):not([type="submit"]),
+  textarea, select { font-size:16px !important; }
+}
+
+/* ===== Итоги недели: размеры и порядок плиток =====
+   Телефон: компактная плитка занимает половину ширины, остальные строку целиком.
+   Планшет: 3 / 2 / 1 в ряд. Компьютер: 4 / 3 / 1 в ряд. */
+.ws-tile.ws-compact { grid-column:span 6; padding:12px 13px; }
+.ws-tile.ws-normal, .ws-tile.ws-wide { grid-column:span 12; }
+.ws-tile.ws-compact .ws-big { font-size:24px; }
+.ws-tile.ws-compact .ws-mood-days svg { width:16px; height:16px; }
+.ws-tile.ws-compact .ws-mood-name { width:34px; }
+.ws-tile.ws-compact .ws-mood-row { gap:6px; }
+.ws-tile.ws-wide .ws-mood-days { max-width:560px; }
+.ws-mood-name { flex-shrink:0; }
+@media (min-width:560px) {
+  .ws-tile.ws-wide .ws-mood-days svg { width:28px; height:28px; }
+  .ws-tile.ws-compact { grid-column:span 4; }
+  .ws-tile.ws-normal { grid-column:span 6; }
+}
+@media (min-width:900px) {
+  .ws-tile.ws-compact { grid-column:span 3; }
+  .ws-tile.ws-normal { grid-column:span 4; }
+}
+.ws-edit-bar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 12px; margin:0 0 12px; padding:10px 12px; border-radius:12px; background:var(--c-accent-50); }
+.ws-edit-bar p { margin:0; flex:1 1 220px; color:var(--c-ink-soft); font-size:12px; line-height:1.45; }
+.ws-edit-bar button { display:inline-flex; align-items:center; gap:6px; height:34px; padding:0 12px; border-radius:10px; color:var(--c-accent-700); font-size:13px; font-weight:650; }
+.ws-edit-bar button:hover:not(:disabled) { background:var(--c-accent-100); }
+.ws-edit-bar button:disabled { opacity:.45; cursor:default; }
+.ws-tile.is-editing { outline:2px dashed var(--c-sand-300); outline-offset:-2px; }
+.ws-tools { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:12px; padding-top:10px; border-top:1px solid var(--c-sand-200); }
+.ws-move { display:inline-flex; gap:2px; }
+.ws-move button { display:grid; width:32px; height:32px; place-items:center; border-radius:9px; color:var(--c-ink-soft); }
+.ws-move button:hover:not(:disabled) { background:var(--c-sand-200); color:var(--c-ink); }
+.ws-move button:disabled { opacity:.35; cursor:default; }
+.ws-sizes { display:inline-flex; flex-wrap:wrap; gap:4px; }
+.ws-sizes button { height:32px; padding:0 10px; border-radius:9px; background:var(--c-paper); color:var(--c-ink-soft); font-size:12px; font-weight:650; box-shadow:inset 0 0 0 1px var(--c-sand-200); }
+.ws-sizes button:hover { box-shadow:inset 0 0 0 1px var(--c-sand-300); }
+.ws-sizes button.on { background:var(--c-accent-100); color:var(--c-accent-700); box-shadow:inset 0 0 0 2px var(--c-accent-600); }
+@media (pointer:coarse) { .ws-move button { width:40px; height:40px; } .ws-sizes button { height:40px; padding:0 12px; font-size:13px; } }
+
+.ws-sizes button { max-width:100%; }
+
+/* ===== Календарь: недельный вид ===== */
+.cal-view-switch { display:inline-flex; padding:3px; border-radius:11px; background:var(--c-sand-100); }
+.cal-view-switch button { height:32px; padding:0 14px; border-radius:9px; color:var(--c-ink-soft); font-size:13px; font-weight:650; }
+.cal-view-switch button[aria-pressed="true"] { background:var(--c-paper); color:var(--c-ink); box-shadow:0 1px 3px rgb(0 0 0 / .12); }
+.cal-toolbar-actions { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px; }
+.cal-toolbar-actions .cal-add { flex:0 0 auto; width:auto; height:40px; white-space:nowrap; }
+.calendar-full-toolbar h2.cw-title { text-transform:none; }
+.cw-scroll { position:relative; isolation:isolate; max-height:min(78vh,800px); overflow:auto; border-radius:14px; background:var(--c-paper); box-shadow:inset 0 0 0 1px var(--c-sand-200); overscroll-behavior:contain; }
+.cw-inner { min-width:720px; }
+.cw-top { position:sticky; top:0; z-index:30; background:var(--c-paper); box-shadow:0 1px 0 var(--c-sand-200); }
+.cw-row, .cw-body { display:grid; grid-template-columns:46px repeat(7,minmax(0,1fr)); }
+.cw-axis-cell, .cw-axis { position:sticky; left:0; z-index:25; background:var(--c-paper); }
+.cw-dayhead { display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 2px 6px; border-left:1px solid var(--c-sand-200); color:var(--c-ink-soft); font-size:11px; font-weight:650; text-transform:uppercase; }
+.cw-dayhead b { display:grid; width:30px; height:30px; place-items:center; border-radius:50%; color:var(--c-ink); font-size:16px; font-weight:600; }
+.cw-dayhead.is-today { color:var(--c-accent-700); }
+.cw-dayhead.is-today b { background:var(--c-accent-600); color:var(--c-on-accent); }
+.cw-allday { border-top:1px solid var(--c-sand-200); }
+.cw-allday-label { display:grid; place-items:center; color:var(--c-ink-faint); font-size:9px; text-transform:uppercase; letter-spacing:.04em; }
+.cw-allday-cell { display:flex; flex-direction:column; gap:2px; min-height:30px; padding:3px 2px; border-left:1px solid var(--c-sand-200); }
+.cw-allday-cell .cal-chip { cursor:pointer; }
+.cw-body { position:relative; }
+.cw-axis { height:100%; }
+.cw-hour { position:absolute; right:6px; color:var(--c-ink-faint); font-size:10px; font-variant-numeric:tabular-nums; transform:translateY(-50%); }
+.cw-col { position:relative; border-left:1px solid var(--c-sand-200); background-image:linear-gradient(to bottom,var(--c-sand-200) 1px,transparent 1px); background-size:100% 48px; cursor:cell; touch-action:pan-x pan-y; }
+.cw-col.is-today { background-color:color-mix(in srgb,var(--c-accent-50) 60%,transparent); }
+.cw-blocks { position:absolute; inset:0 0 0 46px; pointer-events:none; }
+.cw-block { position:absolute; z-index:5; overflow:hidden; padding:3px 6px 3px 7px; border-left:3px solid var(--ev); border-radius:8px; background:color-mix(in srgb,var(--ev) 26%,var(--c-paper)); box-shadow:0 0 0 1px color-mix(in srgb,var(--ev) 35%,transparent); color:var(--c-ink); font-size:12px; line-height:1.25; cursor:pointer; user-select:none; touch-action:manipulation; pointer-events:auto; }
+.cw-block:hover, .cw-block:focus-visible { z-index:8; outline:none; box-shadow:0 0 0 2px var(--ev),0 6px 16px -6px rgb(0 0 0 / .35); }
+.cw-block.is-dragging { z-index:12; opacity:.85; box-shadow:0 0 0 2px var(--ev),0 10px 24px -8px rgb(0 0 0 / .45); cursor:grabbing; }
+.cw-block b { display:block; overflow:hidden; font-weight:650; text-overflow:ellipsis; white-space:nowrap; }
+.cw-block span { display:block; color:var(--c-ink-soft); font-size:11px; font-variant-numeric:tabular-nums; }
+.cw-block.is-short { padding-top:1px; padding-bottom:1px; }
+.cw-block .cw-line { overflow:hidden; color:var(--c-ink); font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
+.cw-block .cw-line em { color:var(--c-ink-soft); font-style:normal; font-variant-numeric:tabular-nums; }
+.cw-resize { position:absolute; inset:auto 0 0 0; height:10px; cursor:ns-resize; touch-action:none; }
+.cw-resize::after { content:""; position:absolute; left:50%; bottom:2px; width:22px; height:3px; border-radius:3px; background:var(--ev); opacity:0; transform:translateX(-50%); transition:opacity .15s; }
+.cw-block:hover .cw-resize::after, .cw-block.is-dragging .cw-resize::after { opacity:.9; }
+.cw-ghost { position:absolute; inset-inline:2px; z-index:4; padding:2px 6px; border-radius:8px; background:color-mix(in srgb,var(--c-accent-600) 22%,transparent); box-shadow:inset 0 0 0 2px var(--c-accent-600); color:var(--c-accent-700); font-size:11px; font-weight:650; pointer-events:none; }
+.cw-now { position:absolute; inset-inline:0; z-index:9; height:0; border-top:2px solid var(--c-danger); pointer-events:none; }
+.cw-now i { position:absolute; left:-5px; top:-6px; width:10px; height:10px; border-radius:50%; background:var(--c-danger); }
+@media (pointer:coarse) { .cw-resize { height:16px; } .cw-view-switch button, .cal-view-switch button { height:40px; } }
+@media (max-width:640px) { .cw-inner { min-width:660px; } .cw-block { font-size:11px; } }
+
+/* ===== Календарь: компактная шапка (до сетки не нужно листать) ===== */
+.calendar-full-card { padding:16px 18px 14px; }
+.cal-toolbar-actions { gap:12px; margin-bottom:12px; }
+.cal-page-title { flex:1 1 auto; margin:0; color:var(--c-ink); font-size:26px; line-height:1.1; }
+.cal-nav-row { gap:10px; margin-bottom:12px; }
+.cal-nav-row h2 { min-width:0; font-size:19px; }
+.cw-scroll { max-height:none; height:clamp(22rem,calc(100dvh - 15.5rem),58rem); }
+@media (max-width:640px) {
+  .calendar-full-card { padding:10px 10px 12px; }
+  .cal-page-title { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; } /* заголовок виден программам чтения, а на экране экономим место */
+  .cal-toolbar-actions { gap:8px; margin-bottom:8px; }
+  .cal-toolbar-actions .cal-view-switch { flex:1 1 auto; }
+  .cal-toolbar-actions .cal-view-switch button { flex:1 1 0; padding:0 8px; }
+  .calendar-full-toolbar.cal-nav-row { flex-wrap:nowrap; justify-content:space-between; gap:4px; margin-bottom:8px; }
+  .calendar-full-toolbar.cal-nav-row h2 { order:0; flex:1 1 auto; width:auto; margin:0; font-size:16px; line-height:1.2; }
+  .calendar-full-toolbar.cal-nav-row .calendar-today { min-height:36px; padding:0 10px; font-size:12px; }
+  .calendar-full-toolbar.cal-nav-row .calendar-nav { width:36px; height:36px; }
+  .cw-scroll { margin-inline:-6px; height:clamp(20rem,calc(100dvh - 15rem),52rem); border-radius:12px; }
+  .cw-inner { min-width:590px; }
+  .cw-dayhead { flex-direction:row; justify-content:center; gap:5px; padding:6px 2px 5px; }
+  .cw-dayhead b { width:26px; height:26px; font-size:14px; }
+  .cal-hint { margin-top:8px; font-size:11px; }
+}
+
+.calendar-full-toolbar.cal-nav-row h2 { text-transform:none; }

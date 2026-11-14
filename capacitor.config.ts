@@ -30,6 +30,8 @@ const config: CapacitorConfig = {
     SplashScreen: { launchShowDuration: 1500, launchAutoHide: false, backgroundColor: "#F7F5EC", showSpinner: false },
     StatusBar: { overlaysWebView: false },
     PushNotifications: { presentationOptions: ["badge", "sound", "alert"] },
+    // Экранная клавиатура уменьшает окно приложения, а не закрывает поля ввода
+    Keyboard: { resize: "native", resizeOnFullScreen: true },
   },
 };
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { Check, ExternalLink, Gift, ImagePlus, Link2, Loader2, Lock, Pencil, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, ChevronsDownUp, ChevronsUpDown, ExternalLink, Gift, ImagePlus, Link2, Loader2, Lock, Pencil, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { Illustration } from "@/components/ui/illustrations";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { supabase } from "@/lib/supabase";
@@ -112,6 +112,15 @@ export function WishlistView() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [urls, setUrls] = useState<Record<string, string>>({});
+  /** Какие желания свёрнуты. Запоминается на этом устройстве. */
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    try { return new Set<string>(JSON.parse(window.localStorage.getItem("together:wish-collapsed") ?? "[]")); } catch { return new Set<string>(); }
+  });
+  const saveCollapsed = (next: Set<string>) => {
+    setCollapsed(next);
+    try { window.localStorage.setItem("together:wish-collapsed", JSON.stringify([...next])); } catch { /* ignore */ }
+  };
+  const toggleItem = (id: string) => { const next = new Set(collapsed); if (!next.delete(id)) next.add(id); saveCollapsed(next); };
 
   const load = useCallback(async () => {
     if (!supabase || !couple || !profile) return;
@@ -153,6 +162,14 @@ export function WishlistView() {
   const theirs = items.filter((x) => x.owner_id === partner?.id);
   const visible = tab === "mine" ? mine : theirs;
   const markedCount = theirs.filter((x) => marks.has(x.id)).length;
+  const hasMore = (x: Wish) => Boolean(x.details || x.link || x.media_path);
+  const foldable = visible.filter(hasMore);
+  const allCollapsed = foldable.length > 0 && foldable.every((x) => collapsed.has(x.id));
+  const toggleAll = () => {
+    const next = new Set(collapsed);
+    for (const x of foldable) { if (allCollapsed) next.delete(x.id); else next.add(x.id); }
+    saveCollapsed(next);
+  };
 
   /** Общая часть добавления и правки: проверяет ссылку, грузит фото, пишет в базу. */
   async function save(
@@ -245,6 +262,12 @@ export function WishlistView() {
 
       {tab === "mine" && <WishForm submitLabel="Добавить" busy={saving && editing === null} onSubmit={(v) => save(v)} />}
 
+      {foldable.length > 1 && (
+        <div className="wishlist-fold-all">
+          <button type="button" onClick={toggleAll}>{allCollapsed ? <ChevronsUpDown size={14} /> : <ChevronsDownUp size={14} />}{allCollapsed ? "Развернуть все" : "Свернуть все"}</button>
+        </div>
+      )}
+
       <div className="wishlist-list">
         {visible.length === 0 ? (
           <div className="wishlist-empty">
@@ -261,6 +284,9 @@ export function WishlistView() {
           }
           const marked = tab === "partner" && marks.has(item.id);
           const photoUrl = item.media_path ? urls[item.media_path] : undefined;
+          const foldableItem = hasMore(item);
+          const isCollapsed = foldableItem && collapsed.has(item.id);
+          const summary = [item.details && "комментарий", item.link && "ссылка", item.media_path && "фото"].filter(Boolean).join(" · ");
           return (
             <article className={`wishlist-item ${marked ? "is-completed" : ""}`} key={item.id}>
               {tab === "partner" ? (
@@ -273,18 +299,24 @@ export function WishlistView() {
               )}
               <div className="wishlist-item-copy">
                 <strong>{item.title}</strong>
-                {item.details && <small>{item.details}</small>}
-                {item.link && (
+                {isCollapsed && <small className="wishlist-summary">{summary}</small>}
+                {!isCollapsed && item.details && <small>{item.details}</small>}
+                {!isCollapsed && item.link && (
                   <a className="wishlist-link" href={item.link} target="_blank" rel="noopener noreferrer nofollow">
                     <Link2 size={12} /><span>{hostOf(item.link)}</span><ExternalLink size={11} />
                   </a>
                 )}
-                {photoUrl && (
+                {!isCollapsed && photoUrl && (
                   <ViewableImage className="wishlist-photo" src={photoUrl} alt={`Фото: ${item.title}`} />
                 )}
-                {marked && <em><Lock size={10} /> {shareMine ? "Партнёр видит вашу отметку" : "Отметка только для вас"}</em>}
-                {tab === "mine" && partnerMarks.has(item.id) && <em><Check size={10} /> {partner?.display_name ?? "Партнёр"} отметил(а) это желание</em>}
+                {!isCollapsed && marked && <em><Lock size={10} /> {shareMine ? "Партнёр видит вашу отметку" : "Отметка только для вас"}</em>}
+                {!isCollapsed && tab === "mine" && partnerMarks.has(item.id) && <em><Check size={10} /> {partner?.display_name ?? "Партнёр"} отметил(а) это желание</em>}
               </div>
+              {foldableItem && (
+                <button type="button" className="wishlist-toggle" onClick={() => toggleItem(item.id)} aria-expanded={!isCollapsed} aria-label={isCollapsed ? `Развернуть «${item.title}»` : `Свернуть «${item.title}»`}>
+                  <ChevronDown size={16} />
+                </button>
+              )}
               {tab === "mine" && (
                 <div className="wishlist-actions">
                   <button type="button" onClick={() => setEditing(item.id)} disabled={busy === item.id} aria-label={`Изменить ${item.title}`}><Pencil size={15} /></button>

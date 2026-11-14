@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
-import { CheckCircle2, CloudRain, HelpCircle, ImagePlus, Lightbulb, MessageCircle, Pencil, RotateCcw, Send, Trash2, X, type LucideIcon } from "lucide-react";
+import { CheckCircle2, CloudRain, HelpCircle, ImagePlus, Lightbulb, MessageCircle, Pencil, RotateCcw, Send, Trash2, X, type LucideIcon, ChevronDown, Image as ImageIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Illustration } from "@/components/ui/illustrations";
 import { FeatureOff } from "@/components/ui/feature-off";
@@ -40,6 +40,9 @@ export function TalkView() {
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<{ kind: "thread" | "reply"; id: string } | null>(null);
   const [editText, setEditText] = useState("");
+  /** Раскрытые разговоры: по умолчанию все свёрнуты и видно только первое сообщение. */
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleThread = (id: string) => setExpanded((prev) => { const next = new Set(prev); if (!next.delete(id)) next.add(id); return next; });
 
   const [attachment, setAttachment] = useState<Attachment | null>(null);
   const [replyMedia, setReplyMedia] = useState<Record<string, Attachment>>({});
@@ -146,22 +149,40 @@ export function TalkView() {
   const photo = (path: string | null | undefined) =>
     path && urls[path] ? <ViewableImage src={urls[path]} alt="Фото из разговора" className="talk-img-link" imgClassName="talk-img" /> : null;
 
+  const repliesWord = (n: number) => {
+    const last = n % 10, tens = n % 100;
+    return `${n} ${last === 1 && tens !== 11 ? "ответ" : last >= 2 && last <= 4 && (tens < 12 || tens > 14) ? "ответа" : "ответов"}`;
+  };
+
   const renderThread = (t: TalkThread) => {
     const kindInfo = KINDS.find((k) => k.id === t.kind)!;
     const replies = repliesOf(t.id);
     const mine = t.author_id === profile.id;
     const waiting = !t.resolved && replies.length === 0;
+    const isOpen = expanded.has(t.id);
+    const photoOnly = Boolean(t.media_path) && t.body === PHOTO_TEXT;
+    const statusNode = t.resolved ? <span className="text-success">Решено ✓</span> : waiting ? <span className={mine ? "text-ink-faint" : "text-accent-700"}>{mine ? `Ждёт ответа от ${partnerName}` : "Ждёт вашего ответа"}</span> : <span className="text-ink-faint">Идёт разговор</span>;
     return (
       <li key={t.id} className={cn("rounded-card bg-paper p-4 shadow-soft ring-1 sm:p-5", waiting && !mine ? "ring-2 ring-accent-600" : "ring-sand-200")}>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="inline-flex items-center gap-2 rounded-full bg-accent-50 px-3 py-1 text-sm font-semibold text-accent-700"><kindInfo.icon className="size-4" aria-hidden />{kindInfo.label}</span>
-          <span className="text-xs text-ink-faint">{nameOf(t.author_id)} · {when(t.created_at)}{t.edited_at ? " · изменено" : ""}</span>
-        </div>
-        {editing?.kind === "thread" && editing.id === t.id ? editor(Boolean(t.media_path)) : !(t.media_path && t.body === PHOTO_TEXT) && <p className="mt-3 whitespace-pre-wrap leading-relaxed [overflow-wrap:anywhere]">{t.body}</p>}
+        <button type="button" onClick={() => toggleThread(t.id)} aria-expanded={isOpen} aria-label={isOpen ? "Свернуть разговор" : "Открыть весь разговор"} className="talk-thread-head block w-full rounded-lg text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-600">
+          <span className="flex flex-wrap items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-2 rounded-full bg-accent-50 px-3 py-1 text-sm font-semibold text-accent-700"><kindInfo.icon className="size-4" aria-hidden />{kindInfo.label}</span>
+            <span className="inline-flex items-center gap-1.5 text-xs text-ink-faint">{nameOf(t.author_id)} · {when(t.created_at)}{t.edited_at ? " · изменено" : ""}<ChevronDown className={cn("size-4 transition-transform", isOpen && "rotate-180")} aria-hidden /></span>
+          </span>
+          {!isOpen && <span className="mt-3 line-clamp-2 block leading-relaxed [overflow-wrap:anywhere]">{photoOnly ? "📷 Фото" : t.body}</span>}
+        </button>
+        {!isOpen && (
+          <p className="mt-2 flex flex-wrap items-center gap-x-2 text-xs font-semibold">
+            {statusNode}
+            {replies.length > 0 && <span className="font-normal text-ink-faint">· {repliesWord(replies.length)}</span>}
+            {t.media_path && !photoOnly && <span className="inline-flex items-center gap-1 font-normal text-ink-faint">· <ImageIcon className="size-3.5" aria-hidden /> фото</span>}
+          </p>
+        )}
+        {isOpen && (
+          <div>
+        {editing?.kind === "thread" && editing.id === t.id ? editor(Boolean(t.media_path)) : !photoOnly && <p className="whitespace-pre-wrap leading-relaxed [overflow-wrap:anywhere]">{t.body}</p>}
         {photo(t.media_path)}
-        <p className="mt-2 text-xs font-semibold">
-          {t.resolved ? <span className="text-success">Решено ✓</span> : waiting ? <span className={mine ? "text-ink-faint" : "text-accent-700"}>{mine ? `Ждёт ответа от ${partnerName}` : "Ждёт вашего ответа"}</span> : <span className="text-ink-faint">Идёт разговор</span>}
-        </p>
+        <p className="mt-2 text-xs font-semibold">{statusNode}</p>
 
         {replies.length > 0 && (
           <ul className="mt-3 space-y-2 border-l-2 border-sand-200 pl-3">
@@ -205,6 +226,8 @@ export function TalkView() {
               {t.resolved ? <><RotateCcw className="size-4" aria-hidden />Открыть снова</> : <><CheckCircle2 className="size-4" aria-hidden />Отметить решённым</>}
             </button>
             <button type="button" onClick={() => { if (window.confirm("Удалить это обращение вместе с ответами?")) void run(() => deleteThread(t.id, [t.media_path, ...repliesOf(t.id).map((r) => r.media_path)].filter((p): p is string => Boolean(p)))); }} className="inline-flex items-center gap-1.5 font-medium text-ink-soft hover:text-danger"><Trash2 className="size-4" aria-hidden />Удалить</button>
+          </div>
+        )}
           </div>
         )}
       </li>

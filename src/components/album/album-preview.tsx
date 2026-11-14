@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, ImagePlus, Loader2 } from "lucide-react";
 import { AlbumLightbox } from "@/components/album/album-lightbox";
+import { AlbumUploadDialog } from "@/components/album/album-upload-dialog";
 import { useAlbum, useAlbumUpload } from "@/components/album/use-album";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 
@@ -16,6 +17,7 @@ export function AlbumPreview() {
   const { run, progress, error: uploadError } = useAlbumUpload(() => void reload());
   const input = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState<number | null>(null);
+  const [pending, setPending] = useState<File[] | null>(null);
   if (!couple || !profile) return null;
 
   const list = photos ?? [];
@@ -28,7 +30,7 @@ export function AlbumPreview() {
       <div className="dash-preview-head">
         <p>{total > 0 ? `Фотографий в альбоме: ${total}` : "Общие фотографии, которые видите только вы двое"}</p>
         <input ref={input} type="file" accept="image/*" multiple className="sr-only" tabIndex={-1}
-          onChange={(e) => { if (e.target.files?.length) void run(Array.from(e.target.files)); e.target.value = ""; }} />
+          onChange={(e) => { const images = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith("image/")); if (images.length) setPending(images); e.target.value = ""; }} />
         <button type="button" className="dash-write" onClick={() => input.current?.click()} disabled={uploading}>
           {uploading ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}
           {uploading ? `${Math.min(progress.done + 1, progress.total)} из ${progress.total}…` : "Добавить"}
@@ -54,6 +56,7 @@ export function AlbumPreview() {
           ))}
         </ul>
       )}
+      <AlbumUploadDialog files={pending} onClose={() => setPending(null)} onConfirm={(items) => { setPending(null); void run(items); }} />
       <Link href="/album" className="calendar-open-link">Открыть альбом <ArrowUpRight size={14} /></Link>
       {open !== null && list.length > 0 && (
         <AlbumLightbox photos={list} thumbs={thumbs} index={open} onIndexChange={setOpen} onClose={() => setOpen(null)} onChanged={() => void reload()} nameOf={nameOf} />

@@ -32,15 +32,16 @@ export async function getAdminStats(): Promise<AdminStats> {
 }
 
 export async function listAllTickets(status: TicketStatus | "all"): Promise<AdminTicket[]> {
-  let query = db()
-    .from("support_tickets")
-    .select("id,kind,message,status,admin_reply,created_at,updated_at,email,display_name,meta")
-    .order("created_at", { ascending: false })
-    .limit(100);
-  if (status !== "all") query = query.eq("status", status);
-  const { data, error } = await query;
+  const base = "id,kind,message,status,admin_reply,created_at,updated_at,email,display_name,meta";
+  const run = async (columns: string) => {
+    let query = db().from("support_tickets").select(columns).order("created_at", { ascending: false }).limit(100);
+    if (status !== "all") query = query.eq("status", status);
+    return query;
+  };
+  let { data, error } = await run(`${base},attachments`);
+  if (error) ({ data, error } = await run(base)); // миграция 030 ещё не применена
   if (error) throw dbError(error);
-  return (data ?? []) as AdminTicket[];
+  return (data ?? []) as unknown as AdminTicket[];
 }
 
 /** Ответ и/или новый статус. При новом ответе автору уходит уведомление (триггер в базе). */

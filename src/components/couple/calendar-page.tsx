@@ -2,20 +2,20 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
-import Link from "next/link";
 import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Illustration } from "@/components/ui/illustrations";
-import { ArrowLeft, CalendarDays, Check, ChevronLeft, ChevronRight, ListChecks, Pencil, Plus, Trash2 } from "lucide-react";
+import { CalendarDays, Check, ChevronLeft, ChevronRight, ListChecks, Pencil, Plus, Trash2 } from "lucide-react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { CalendarEventModal, type EventDraft } from "@/components/couple/calendar-event-modal";
+import { CalendarWeek } from "@/components/couple/calendar-week";
 import { useCalendarEvents } from "@/hooks/use-calendar-events";
 import { useCalendarTodos } from "@/hooks/use-calendar-todos";
 import { setTodoDone } from "@/services/todos";
 import { featureOn } from "@/utils/features";
 import { cleanTodoTitle } from "@/utils/todo-title";
 import { createEvent, deleteEvent, updateEvent, type EventInput } from "@/services/calendar";
-import { colorHex, dayShift, eventsInRange, eventsOnDay } from "@/utils/calendar";
+import { colorHex, dayShift, eventsInRange, eventsOnDay, minToTime, timeRange } from "@/utils/calendar";
 import { addDays, pluralRu, todayISO } from "@/utils/days";
 import type { CalendarEvent, Todo } from "@/types";
 import type { CSSProperties } from "react";
@@ -29,6 +29,7 @@ type MenuState = { x: number; y: number; target: { kind: "day"; iso: string } | 
 const evStyle = (hex: string) => ({ "--ev": hex }) as CSSProperties;
 const longDate = (iso: string) => new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
 const shortDate = (iso: string) => new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`)).replace(".", "");
+const mondayOf = (iso: string) => addDays(iso, -((new Date(`${iso}T12:00:00`).getDay() + 6) % 7));
 const rangeLabel = (a: string, b: string) => (a === b ? shortDate(a) : `${shortDate(a)} — ${shortDate(b)}`);
 
 export function CalendarPage() {
@@ -38,8 +39,18 @@ export function CalendarPage() {
   // /calendar?date=2026-11-20 открывает календарь сразу на этом дне (так ведут дни с главной)
   const dateParam = useSearchParams().get("date");
   const initialDay = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) && !Number.isNaN(Date.parse(dateParam)) ? dateParam : null;
+  const [view, setViewState] = useState<"month" | "week">(() => {
+    try { return window.localStorage.getItem("together-calendar-view") === "week" ? "week" : "month"; } catch { return "month"; }
+  });
+  const setView = (next: "month" | "week") => {
+    setViewState(next);
+    setMenu(null); setRangeMode(false);
+    if (next === "week") setWeekStart(mondayOf(anchor < head ? anchor : head));
+    try { window.localStorage.setItem("together-calendar-view", next); } catch { /* ignore */ }
+  };
   const [cursor, setCursor] = useState(() => (initialDay ? new Date(`${initialDay}T12:00:00`) : new Date()));
   const [anchor, setAnchor] = useState(initialDay ?? today);
+  const [weekStart, setWeekStart] = useState(() => mondayOf(initialDay ?? today));
   const [head, setHead] = useState(initialDay ?? today);
   const [draft, setDraft] = useState<EventDraft | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
@@ -60,20 +71,22 @@ export function CalendarPage() {
   const firstOffset = (new Date(year, month, 1).getDay() + 6) % 7;
   const gridStart = todayISO(new Date(year, month, 1 - firstOffset));
   const cells = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i)); // 42 строк — дёшево, мемоизация не нужна
-  const { events, error, reload } = useCalendarEvents(cells[0], cells[41]);
-  const { todos, reload: reloadTodos } = useCalendarTodos(cells[0], cells[41], featureOn(couple, "todos"));
+  const rangeFrom = view === "week" ? weekStart : cells[0];
+  const rangeTo = view === "week" ? addDays(weekStart, 6) : cells[41];
+  const { events, error, reload } = useCalendarEvents(rangeFrom, rangeTo);
+  const { todos, reload: reloadTodos } = useCalendarTodos(rangeFrom, rangeTo, featureOn(couple, "todos"));
   const todosOnDay = (iso: string) => todos.filter((t) => t.due_day === iso);
 
   const selStart = anchor < head ? anchor : head;
   const selEnd = anchor < head ? head : anchor;
   const selCount = Math.round((Date.parse(selEnd) - Date.parse(selStart)) / 86_400_000) + 1;
-  const monthName = new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(cursor);
+  const monthName = (() => { const t = new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(cursor).replace(/\s*г\.$/, ""); return t.charAt(0).toUpperCase() + t.slice(1); })();
   const selectedEvents = eventsInRange(events, selStart, selEnd);
   const selectedTodos = todos.filter((t) => t.due_day !== null && t.due_day >= selStart && t.due_day <= selEnd);
 
   // /calendar#new (кнопка «+» на телефоне) сразу открывает создание пометки на сегодня
   useEffect(() => {
-    if (window.location.hash === "#new") setDraft({ title: "", note: "", color: "rose", start: initialDay ?? today, end: initialDay ?? today, repeat: "none" });
+    if (window.location.hash === "#new") setDraft({ title: "", note: "", color: "rose", start: initialDay ?? today, end: initialDay ?? today, repeat: "none", allDay: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -108,8 +121,8 @@ export function CalendarPage() {
     setMenu({ x: Math.max(8, Math.min(x, window.innerWidth - width - 8)), y: Math.max(8, Math.min(y, window.innerHeight - height - 8)), target });
   }, []);
 
-  const openNew = (start: string, end: string) => { setMenu(null); setDraft({ title: "", note: "", color: "rose", start, end, repeat: "none" }); };
-  const openEdit = (e: CalendarEvent) => { setMenu(null); setDraft({ id: e.id, title: e.title, note: e.note ?? "", color: e.color, start: e.series_start ?? e.start_day, end: e.series_end ?? e.end_day, repeat: e.repeat ?? "none" }); };
+  const openNew = (start: string, end: string) => { setMenu(null); setDraft({ title: "", note: "", color: "rose", start, end, repeat: "none", allDay: true }); };
+  const openEdit = (e: CalendarEvent) => { setMenu(null); setDraft({ id: e.id, title: e.title, note: e.note ?? "", color: e.color, start: e.series_start ?? e.start_day, end: e.series_end ?? e.end_day, repeat: e.repeat ?? "none", allDay: !e.start_time, startTime: e.start_time ?? undefined, endTime: e.end_time ?? undefined }); };
 
   async function save(input: EventInput, id?: string) {
     if (!couple || !profile) return;
@@ -138,6 +151,35 @@ export function CalendarPage() {
       await reload();
     } catch (err) { setActionError(err instanceof Error ? err.message : "Не удалось перенести пометку."); }
   }
+
+  /** Новое событие со временем из недельного вида. */
+  const openNewTimed = (day: string, startMin: number, endMin: number) => {
+    setMenu(null);
+    setDraft({ title: "", note: "", color: "rose", start: day, end: day, repeat: "none", allDay: false, startTime: minToTime(startMin), endTime: minToTime(endMin) });
+  };
+
+  /** Перенос или растягивание блока в неделе: меняет день и время (у повторяющегося события сдвигается вся серия). */
+  async function changeTimes(ev: CalendarEvent, day: string, startMin: number, endMin: number) {
+    const delta = dayShift(ev.start_day, day);
+    if (ev.repeat && ev.repeat !== "none" && !window.confirm(`«${ev.title}» повторяется. Изменение применится ко всей серии${delta ? `, день сдвинется на ${delta > 0 ? "+" : ""}${delta} дн.` : ""}. Продолжить?`)) { await reload(); return; }
+    setActionError("");
+    try {
+      await updateEvent(ev.id, {
+        title: ev.title, note: ev.note ?? "", color: ev.color, repeat: ev.repeat ?? "none",
+        start: addDays(ev.series_start ?? ev.start_day, delta), end: addDays(ev.series_end ?? ev.end_day, delta),
+        startTime: minToTime(startMin), endTime: minToTime(endMin),
+      });
+      await reload();
+    } catch (err) { setActionError(err instanceof Error ? err.message : "Не удалось изменить событие."); await reload(); }
+  }
+
+  const weekShift = (n: number) => { setWeekStart((w) => addDays(w, 7 * n)); setMenu(null); };
+  const weekTitle = (() => {
+    const a = weekStart, b = addDays(weekStart, 6);
+    const fmt = (iso: string, withMonth: boolean) => new Intl.DateTimeFormat("ru-RU", withMonth ? { day: "numeric", month: "long", timeZone: "UTC" } : { day: "numeric", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
+    const sameMonth = a.slice(0, 7) === b.slice(0, 7);
+    return `${sameMonth ? fmt(a, false) : fmt(a, true)} — ${fmt(b, true)} ${b.slice(0, 4)}`;
+  })();
 
   function onDayPointerDown(e: ReactPointerEvent, iso: string) {
     if (e.button !== 0) return; // правая кнопка не меняет выделение — этим занимается меню
@@ -209,20 +251,43 @@ export function CalendarPage() {
 
   return (
     <div className="calendar-page-full">
-      <Link href="/dashboard" className="calendar-back-link"><ArrowLeft size={16} /> На главную</Link>
-      <header className="calendar-page-heading">
-        <span className="dashboard-icon icon-rose"><CalendarDays size={22} /></span>
-        <div><p className="eyebrow">ВАШИ ОБЩИЕ ПЛАНЫ</p><h1 className="font-serif">Календарь</h1><p>Отмечайте важные дни: один или сразу несколько подряд.</p></div>
-      </header>
-
       <section className="dashboard-card calendar-full-card">
-        <div className="calendar-full-toolbar">
-          <button className="calendar-nav" onClick={() => monthShift(-1)} aria-label="Предыдущий месяц"><ChevronLeft /></button>
-          <h2 className="font-serif">{monthName}</h2>
-          <button className="calendar-nav" onClick={() => monthShift(1)} aria-label="Следующий месяц"><ChevronRight /></button>
-          <button className="calendar-today" onClick={() => { goTo(new Date()); setAnchor(today); setHead(today); }}>Сегодня</button>
+        <div className="cal-toolbar-actions">
+          <h1 className="cal-page-title font-serif">Календарь</h1>
+          <div className="cal-view-switch" role="group" aria-label="Вид календаря">
+            <button type="button" aria-pressed={view === "month"} onClick={() => setView("month")}>Месяц</button>
+            <button type="button" aria-pressed={view === "week"} onClick={() => setView("week")}>Неделя</button>
+          </div>
+          <button
+            type="button"
+            className="cal-add"
+            onClick={() => {
+              if (view === "month") { openNew(selStart, selEnd); return; }
+              const n = new Date();
+              const m = Math.min(Math.ceil((n.getHours() * 60 + n.getMinutes()) / 30) * 30, 22 * 60);
+              openNewTimed(weekStart <= today && today <= addDays(weekStart, 6) ? today : weekStart, m, m + 60);
+            }}
+          ><Plus size={15} /> {view === "month" ? "Пометка" : "Событие"}</button>
         </div>
 
+        {view === "week" ? (
+          <div className="calendar-full-toolbar cal-nav-row">
+            <button className="calendar-nav" onClick={() => weekShift(-1)} aria-label="Предыдущая неделя"><ChevronLeft /></button>
+            <h2 className="font-serif cw-title">{weekTitle}</h2>
+            <button className="calendar-nav" onClick={() => weekShift(1)} aria-label="Следующая неделя"><ChevronRight /></button>
+            <button className="calendar-today" onClick={() => setWeekStart(mondayOf(today))}>Сегодня</button>
+          </div>
+        ) : (
+        <div className="calendar-full-toolbar cal-nav-row">
+          <button className="calendar-nav" onClick={() => monthShift(-1)} aria-label="Предыдущий месяц"><ChevronLeft /></button>
+          <h2 className="font-serif">{monthName}</h2>
+          <button className="calendar-nav" onClick={() => monthShift(1)} aria-label="Следующий месяц"><ChevronRight /></button>
+          <button className="calendar-today" onClick={() => { goTo(new Date()); setAnchor(today); setHead(today); }}>Сегодня</button>
+        </div>
+        )}
+
+        {view === "month" ? (
+          <>
         {rangeMode && (
           <div className="cal-range-banner" role="status">
             <span>Нажмите на последний день периода</span>
@@ -267,7 +332,7 @@ export function CalendarPage() {
                       onDragEnd={() => { dragEvent.current = null; setDropDay(null); }}
                       onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openEdit(ev); }} onContextMenu={(e) => onChipContext(e, ev)}
                       onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); openEdit(ev); } }}>
-                      {ev.repeat && ev.repeat !== "none" ? "↻ " : ""}{ev.title}
+                      {ev.repeat && ev.repeat !== "none" ? "↻ " : ""}{ev.start_time ? `${ev.start_time} ` : ""}{ev.title}
                     </div>
                   ))}
                   {dayTodos.slice(0, room).map((t) => (
@@ -292,10 +357,27 @@ export function CalendarPage() {
         </div>
         <p className="cal-hint cal-hint-desktop">Зажмите кнопку мыши и проведите по дням (или Shift + клик), чтобы выбрать несколько. Правая кнопка мыши открывает меню, двойной клик создаёт пометку. Пометку можно перетащить на другой день, чтобы изменить дату. Дела со сроком показаны в календаре значком ☐.</p>
         <p className="cal-hint cal-hint-touch">Нажмите на день, чтобы выбрать его. Долгое нажатие открывает меню (там можно выбрать период из нескольких дней). Листайте месяцы свайпом влево и вправо.</p>
+          </>
+        ) : (
+          <>
+            <CalendarWeek
+              weekStart={weekStart}
+              today={today}
+              events={events}
+              todos={todos}
+              onCreate={openNewTimed}
+              onCreateAllDay={(day) => openNew(day, day)}
+              onEdit={openEdit}
+              onChangeTimes={(ev, day, s, e) => void changeTimes(ev, day, s, e)}
+              onOpenTodos={() => router.push("/todos")}
+            />
+          </>
+        )}
       </section>
 
       {(error || actionError) && <p role="alert" className="mt-4 rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger">{error || actionError}</p>}
 
+      {view === "month" && (
       <section className="dashboard-card cal-selected">
         <div className="cal-selected-head">
           <div>
@@ -318,7 +400,7 @@ export function CalendarPage() {
             {selectedEvents.map((ev) => (
               <li key={`${ev.id}:${ev.start_day}`} style={evStyle(colorHex(ev.color))} onContextMenu={(e) => onChipContext(e, ev)}>
                 <i aria-hidden="true" />
-                <div><strong>{ev.title}</strong><small>{ev.repeat && ev.repeat !== "none" ? "↻ " : ""}{rangeLabel(ev.start_day, ev.end_day)}{ev.note ? ` · ${ev.note}` : ""}</small></div>
+                <div><strong>{ev.title}</strong><small>{ev.repeat && ev.repeat !== "none" ? "↻ " : ""}{rangeLabel(ev.start_day, ev.end_day)}{timeRange(ev) ? ` · ${timeRange(ev)}` : ""}{ev.note ? ` · ${ev.note}` : ""}</small></div>
                 <span>
                   <button type="button" onClick={() => openEdit(ev)} aria-label={`Изменить ${ev.title}`}><Pencil size={14} /></button>
                   <button type="button" className="danger" onClick={() => void removeWithConfirm(ev)} aria-label={`Удалить ${ev.title}`}><Trash2 size={14} /></button>
@@ -328,6 +410,7 @@ export function CalendarPage() {
           </ul>
         )}
       </section>
+      )}
 
       {menu && createPortal(
         <div ref={menuRef} role="menu" className="cal-menu" style={{ left: menu.x, top: menu.y }} onContextMenu={(e) => e.preventDefault()}>

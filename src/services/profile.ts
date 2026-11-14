@@ -60,3 +60,15 @@ export async function deleteAccount(avatarPath: string | null) {
   const { error } = await db().rpc("delete_my_account");
   if (error) throw dbError(error);
 }
+
+/** Своё имя для партнёра (видно только вам). Пустое значение возвращает настоящее имя. */
+export async function setPartnerAlias(userId: string, partnerId: string, alias: string | null) {
+  const value = alias?.trim() ?? "";
+  if (!value) {
+    const { error } = await db().from("partner_aliases").delete().eq("user_id", userId).eq("partner_id", partnerId);
+    if (error) throw dbError({ message: "Не удалось сбросить имя. Примените миграцию 032_partner_alias.sql." });
+    return;
+  }
+  const { error } = await db().from("partner_aliases").upsert({ user_id: userId, partner_id: partnerId, alias: value, updated_at: new Date().toISOString() });
+  if (error) throw dbError({ message: "Не удалось сохранить имя. Примените миграцию 032_partner_alias.sql." });
+}

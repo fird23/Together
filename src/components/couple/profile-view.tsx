@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { LogOut, UserRound } from "lucide-react";
+import { LogOut, Pencil, UserRound } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Avatar } from "@/components/ui/avatar";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { AvatarPicker } from "@/components/couple/avatar-picker";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { useValidatedForm } from "@/hooks/use-validated-form";
 import { profileNameSchema } from "@/lib/validation";
-import { updateDisplayName } from "@/services/profile";
+import { setPartnerAlias, updateDisplayName } from "@/services/profile";
 import { formatDateRu, todayISO } from "@/utils/days";
 
 const joined = (iso: string) => formatDateRu(todayISO(new Date(iso)));
@@ -21,6 +21,9 @@ export function ProfileView() {
   const { profile, partner, session, couple, refresh, signOut } = useWorkspace();
   const [saved, setSaved] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [alias, setAlias] = useState<string | null>(null); // null: поле не трогали, показываем текущее
+  const [aliasPending, setAliasPending] = useState(false);
+  const [aliasMsg, setAliasMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const { errors, formError, pending, handleSubmit } = useValidatedForm(profileNameSchema, async (data) => {
     setSaved(false);
@@ -31,6 +34,24 @@ export function ProfileView() {
   });
 
   if (!profile || !session) return null;
+
+  const realName = partner?.real_name ?? partner?.display_name ?? "";
+  const hasAlias = Boolean(partner && partner.display_name !== realName);
+  const aliasValue = alias ?? (hasAlias ? (partner?.display_name ?? "") : "");
+
+  async function saveAlias(next: string | null) {
+    if (!partner) return;
+    setAliasPending(true); setAliasMsg(null);
+    try {
+      await setPartnerAlias(session!.user.id, partner.id, next);
+      await refresh();
+      setAlias(null);
+      setAliasMsg({ ok: true, text: next?.trim() ? "Готово. Теперь вы видите партнёра под этим именем." : "Вернули настоящее имя партнёра." });
+    } catch (e) {
+      setAliasMsg({ ok: false, text: e instanceof Error ? e.message : "Не удалось сохранить имя." });
+    }
+    setAliasPending(false);
+  }
 
   async function logout() {
     setLeaving(true);
@@ -79,6 +100,7 @@ export function ProfileView() {
               <Avatar name={partner.display_name} src={partner.avatar_url} size="lg" />
               <div className="min-w-0">
                 <p className="truncate font-serif text-xl font-semibold">{partner.display_name}</p>
+                {hasAlias && <p className="truncate text-sm text-ink-soft">Настоящее имя: {realName}</p>}
                 <p className="text-sm text-ink-soft">В Together с {joined(partner.created_at)}</p>
               </div>
             </div>
@@ -91,6 +113,29 @@ export function ProfileView() {
                 {couple ? "Открыть приглашение" : "Подключиться к паре"}
               </ButtonLink>
             </div>
+          )}
+          {partner && (
+            <form
+              className="mt-5 space-y-3 border-t border-accent-100 pt-5"
+              onSubmit={(e) => { e.preventDefault(); void saveAlias(aliasValue); }}
+            >
+              <TextField
+                name="partner-alias"
+                label="Как вы называете партнёра"
+                icon={Pencil}
+                value={aliasValue}
+                onChange={(e) => setAlias(e.target.value)}
+                maxLength={40}
+                placeholder={realName}
+                disabled={aliasPending}
+              />
+              <p className="text-xs leading-relaxed text-ink-soft">Это имя видите только вы: в приложении и в уведомлениях. Партнёр его не увидит, а его настоящее имя не изменится.</p>
+              {aliasMsg && <Alert tone={aliasMsg.ok ? "success" : "error"}>{aliasMsg.text}</Alert>}
+              <div className="flex flex-wrap gap-2">
+                <Button type="submit" size="sm" loading={aliasPending} disabled={!aliasValue.trim() || aliasValue.trim() === partner.display_name}>Сохранить</Button>
+                {hasAlias && <Button type="button" size="sm" variant="secondary" onClick={() => void saveAlias(null)} disabled={aliasPending}>Вернуть настоящее имя</Button>}
+              </div>
+            </form>
           )}
         </aside>
       </div>

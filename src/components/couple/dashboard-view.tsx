@@ -72,7 +72,7 @@ export function DashboardView() {
     gratitude: { eyebrow: "МАЛЕНЬКИЕ СЛОВА ВАЖНЫ", title: "Благодарности", hint: "Одна строка в день", className: "dashboard-gratitude-section", feature: "gratitude", node: <GratitudeCard /> },
     album: { eyebrow: "ОБЩИЕ МОМЕНТЫ", title: "Фотоальбом", hint: "Ваши фотографии на двоих", className: "dashboard-album-section", feature: "album", node: <AlbumPreview /> },
     memories: { eyebrow: "ЧТО БЫЛО В ЭТОТ ДЕНЬ", title: "Воспоминания", hint: "Месяц, полгода, год назад", className: "dashboard-memories-section", feature: "memories", node: <MemoriesCard /> },
-    weekly: { eyebrow: "ЗА ПОСЛЕДНИЕ 7 ДНЕЙ", title: "Итоги недели", hint: "Как прошла неделя у вас обоих", className: "dashboard-weekly-section", feature: "weekly", node: <WeeklySummary /> },
+    weekly: { eyebrow: "ЗА ПОСЛЕДНИЕ 7 ДНЕЙ", title: "Итоги недели", hint: "Как прошла неделя у вас обоих", className: "dashboard-weekly-section", feature: "weekly", node: <WeeklySummary editing={editing} /> },
   };
   const visible = layout.order.filter((id) => !blocks[id].feature || featureOn(couple, blocks[id].feature));
 

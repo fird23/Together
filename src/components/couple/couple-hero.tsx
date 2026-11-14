@@ -22,7 +22,7 @@ function milestoneLabel(days: number): string | null {
 export function CoupleHero({ me, partner, couple }: { me: Profile; partner: Profile | null; couple: Couple }) {
   const days = daysTogether(couple.start_date);
   const milestone = milestoneLabel(days);
-  const photoUrl = useHeroPhotoUrl(couple.hero_photo_path);
+  const photoUrl = useHeroPhotoUrl(couple.hero_photo_enabled === false ? null : couple.hero_photo_path);
   const blurPx = heroBlurPx(couple);
   return (
     <section className={`relative isolate overflow-hidden rounded-hero bg-paper shadow-soft ring-1 ring-sand-200 dashboard-couple-card ${photoUrl ? `has-photo ${blurPx > 0 ? "photo-blur" : ""}` : ""}`}

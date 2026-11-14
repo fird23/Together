@@ -13,6 +13,7 @@ Deno.serve(async (req) => {
     "",
     record.message,
     record.meta?.page ? `\nСтраница: ${record.meta.page}` : "",
+    Array.isArray(record.attachments) && record.attachments.length ? `📎 Фото: ${record.attachments.length} (смотрите в админ-панели)` : "",
   ].join("\n").slice(0, 4000);
 
   const res = await fetch(`https://api.telegram.org/bot${Deno.env.get("TELEGRAM_BOT_TOKEN")}/sendMessage`, {

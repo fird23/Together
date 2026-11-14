@@ -77,6 +77,11 @@ async function sendFcm(token: string, payload: Payload): Promise<boolean> {
 
 async function push(userId: string, payload: Payload) {
   const result = { android: 0, web: 0, failed: 0 };
+  // Список уведомлений в приложении (колокольчик). Пробные пуши в него не попадают.
+  if (payload.tag !== "test") {
+    const { error } = await sb.from("notifications").insert({ user_id: userId, title: payload.title, body: payload.body, url: payload.url ?? null, tag: payload.tag ?? null });
+    if (error) console.error("Inbox insert failed", error.message);
+  }
   const { data: devices } = await sb.from("device_tokens").select("id,token").eq("user_id", userId);
   for (const d of devices ?? []) {
     try {
@@ -142,20 +147,17 @@ function startsOn(start: string, repeat: string, date: string): boolean {
 }
 
 async function runCron() {
-  const [{ data: prefs }, { data: members }, { data: subs }, { data: tokens }, { data: couples }] = await Promise.all([
+  // Список уведомлений хранит историю 30 дней
+  await sb.from("notifications").delete().lt("created_at", new Date(Date.now() - 30 * 86_400_000).toISOString());
+  const [{ data: prefs }, { data: members }, { data: couples }] = await Promise.all([
     sb.from("notification_prefs").select("*"),
     sb.from("couple_members").select("user_id,couple_id"),
-    sb.from("push_subscriptions").select("user_id"),
-    sb.from("device_tokens").select("user_id"),
     sb.from("couples").select("id,start_date,features"),
   ]);
-  // Получатели: у кого включён пуш в браузере или в приложении на телефоне
-  const subscribed = new Set([...(subs ?? []), ...(tokens ?? [])].map((s) => s.user_id));
   const coupleOfUser = new Map((members ?? []).map((m) => [m.user_id, m.couple_id]));
   const coupleById = new Map((couples ?? []).map((c) => [c.id, c]));
 
   for (const p of prefs ?? []) {
-    if (!subscribed.has(p.user_id)) continue;
     const couple = coupleById.get(coupleOfUser.get(p.user_id));
     if (!couple) continue;
     const { date, hour } = localNow(p.timezone);
@@ -207,7 +209,14 @@ async function partnerOf(coupleId: string, userId: string) {
   const { data } = await sb.from("couple_members").select("user_id").eq("couple_id", coupleId).neq("user_id", userId).maybeSingle();
   return data?.user_id as string | undefined;
 }
-const nameOf = async (id: string) => (await sb.from("profiles").select("display_name").eq("id", id).maybeSingle()).data?.display_name ?? "Партнёр";
+/** Имя человека для получателя: сначала то, как получатель сам называет партнёра, иначе настоящее имя. */
+const nameOf = async (id: string, forUser?: string) => {
+  if (forUser) {
+    const alias = (await sb.from("partner_aliases").select("alias").eq("user_id", forUser).eq("partner_id", id).maybeSingle()).data?.alias;
+    if (alias) return alias;
+  }
+  return (await sb.from("profiles").select("display_name").eq("id", id).maybeSingle()).data?.display_name ?? "Партнёр";
+};
 
 async function runWebhook(body: { type: string; table: string; record: Record<string, string>; old_record?: Record<string, string> }) {
   const r = body.record;
@@ -217,7 +226,7 @@ async function runWebhook(body: { type: string; table: string; record: Record<st
     if (!partner) return;
     const { data: prefs } = await sb.from("notification_prefs").select("partner_mood").eq("user_id", partner).maybeSingle();
     if (prefs?.partner_mood === false) return;
-    await push(partner, { title: `${await nameOf(r.user_id)}: настроение`, body: `${MOODS[r.mood] ?? r.mood}${r.note ? ` — ${r.note}` : ""}`, url: "/dashboard", tag: "mood" });
+    await push(partner, { title: `${await nameOf(r.user_id, partner)}: настроение`, body: `${MOODS[r.mood] ?? r.mood}${r.note ? ` — ${r.note}` : ""}`, url: "/dashboard", tag: "mood" });
   }
   if (body.table === "support_tickets") {
     // Администратор ответил на обращение: сообщаем автору
@@ -233,7 +242,7 @@ async function runWebhook(body: { type: string; table: string; record: Record<st
     if (!partner) return;
     const { data: prefs } = await sb.from("notification_prefs").select("partner_habits").eq("user_id", partner).maybeSingle();
     if (!prefs?.partner_habits) return; // по умолчанию выключено
-    await push(partner, { title: "Привычки", body: `${await nameOf(r.user_id)} выполнил(а): ${habit.title}`, url: "/dashboard", tag: "partner-habit" });
+    await push(partner, { title: "Привычки", body: `${await nameOf(r.user_id, partner)} выполнил(а): ${habit.title}`, url: "/dashboard", tag: "partner-habit" });
   }
 }
 

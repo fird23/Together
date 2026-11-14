@@ -56,7 +56,7 @@ export function NotificationSettings() {
             {subscribed ? <BellRing className="size-5" aria-hidden /> : <BellOff className="size-5" aria-hidden />}
           </span>
           <div>
-            <p className="font-semibold">{status === "loading" ? "Проверяем…" : copy.title}</p>
+            <p className="font-semibold">{status === "loading" ? "Проверяем…" : copy.title || "Недоступно на этом устройстве"}</p>
             <p className="text-sm text-ink-soft">{copy.text}</p>
           </div>
         </div>

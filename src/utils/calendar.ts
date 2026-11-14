@@ -37,8 +37,46 @@ export function expandEvents(raw: CalendarEvent[], from: string, to: string): Ca
       if (end >= from) out.push({ ...e, start_day: start, end_day: end, ...base });
     }
   }
-  return out.sort((a, b) => a.start_day.localeCompare(b.start_day));
+  return out.sort((a, b) => a.start_day.localeCompare(b.start_day) || (a.start_time ?? "").localeCompare(b.start_time ?? ""));
 }
 
 export const dayShift = dayDiff;
 export const REPEAT_LABELS = { none: "Не повторять", weekly: "Каждую неделю", monthly: "Каждый месяц", yearly: "Каждый год" } as const;
+
+/** «09:30» → минуты от начала суток. */
+export const timeToMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+/** Минуты от начала суток → «09:30» (конец суток хранится как 23:59). */
+export const minToTime = (m: number) => {
+  const v = Math.max(0, Math.min(m, 1439));
+  return `${String(Math.floor(v / 60)).padStart(2, "0")}:${String(v % 60).padStart(2, "0")}`;
+};
+export const timeRange = (e: Pick<CalendarEvent, "start_time" | "end_time">) => (e.start_time && e.end_time ? `${e.start_time}–${e.end_time}` : "");
+
+/**
+ * Раскладка событий одного дня по дорожкам: пересекающиеся стоят рядом, а не друг на друге.
+ * Возвращает для каждого id номер дорожки и число дорожек в его группе пересечений.
+ */
+export function layoutDay(items: { id: string; start: number; end: number }[]) {
+  const sorted = [...items].sort((a, b) => a.start - b.start || b.end - a.end);
+  const result = new Map<string, { lane: number; lanes: number }>();
+  let cluster: typeof sorted = [];
+  let clusterEnd = -1;
+  const flush = () => {
+    const laneEnds: number[] = [];
+    const lane = new Map<string, number>();
+    for (const it of cluster) {
+      let l = laneEnds.findIndex((end) => end <= it.start);
+      if (l < 0) { l = laneEnds.length; laneEnds.push(it.end); } else laneEnds[l] = it.end;
+      lane.set(it.id, l);
+    }
+    for (const it of cluster) result.set(it.id, { lane: lane.get(it.id)!, lanes: laneEnds.length });
+    cluster = [];
+  };
+  for (const it of sorted) {
+    if (cluster.length && it.start >= clusterEnd) { flush(); clusterEnd = -1; }
+    cluster.push(it);
+    clusterEnd = Math.max(clusterEnd, it.end);
+  }
+  if (cluster.length) flush();
+  return result;
+}

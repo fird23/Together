@@ -87,6 +87,12 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           const partnerRes = await client.from("profiles").select("*").eq("id", partnerId).maybeSingle();
           if (partnerRes.error) throw partnerRes.error;
           partner = partnerRes.data as Profile | null;
+          if (partner) {
+            // Своё имя для партнёра: подставляем его везде, где показывается имя. Если таблицы ещё нет, остаётся настоящее имя.
+            const aliasRes = await client.from("partner_aliases").select("alias").eq("user_id", userId).eq("partner_id", partnerId).maybeSingle();
+            const alias = !aliasRes.error ? (aliasRes.data?.alias as string | undefined) : undefined;
+            partner = alias ? { ...partner, real_name: partner.display_name, display_name: alias } : { ...partner, real_name: partner.display_name };
+          }
         }
       }
 

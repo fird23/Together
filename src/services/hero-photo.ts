@@ -4,21 +4,58 @@ import { AppError } from "@/lib/errors";
 export const HERO_BUCKET = "couple-photos";
 const HINT = "Не удалось сохранить фото. Примените миграцию 016_photo_and_repeat.sql.";
 
-/** Загружает фото пары (видно обоим) и привязывает его к карточке. Старый файл удаляется. */
-export async function setHeroPhoto(coupleId: string, image: Blob, previousPath: string | null) {
-  const storage = db().storage.from(HERO_BUCKET);
-  const path = `${coupleId}/${crypto.randomUUID()}.jpg`;
-  const { error: uploadError } = await storage.upload(path, image, { contentType: "image/jpeg", upsert: false });
-  if (uploadError) throw new AppError(/size|too large|exceed/i.test(uploadError.message) ? "Фото получилось слишком большим. Выберите другое." : HINT);
-  const { data, error } = await db().from("couples").update({ hero_photo_path: path, updated_at: new Date().toISOString() }).eq("id", coupleId).select("id");
-  if (error || !data?.length) { await storage.remove([path]); throw new AppError(HINT); }
-  if (previousPath) await storage.remove([previousPath]);
+const LIB_HINT = "Не удалось сохранить фото. Примените миграцию 029_hero_photo_library.sql.";
+
+export type HeroPhoto = { id: string; couple_id: string; uploaded_by: string | null; path: string; thumb_path: string | null; created_at: string };
+
+/** Все фото, которые вы с партнёром когда-либо ставили на карточку (новые сверху). */
+export async function listHeroPhotos(coupleId: string): Promise<HeroPhoto[]> {
+  const { data, error } = await db().from("hero_photos").select("id,couple_id,uploaded_by,path,thumb_path,created_at").eq("couple_id", coupleId).order("created_at", { ascending: false });
+  if (error) throw new AppError(LIB_HINT);
+  return (data ?? []) as HeroPhoto[];
 }
 
-export async function removeHeroPhoto(coupleId: string, path: string | null) {
-  const { data, error } = await db().from("couples").update({ hero_photo_path: null, updated_at: new Date().toISOString() }).eq("id", coupleId).select("id");
-  if (error || !data?.length) throw new AppError("Не удалось удалить фото. Попробуйте ещё раз.");
-  if (path) await db().storage.from(HERO_BUCKET).remove([path]);
+/** Загружает новое фото в библиотеку и сразу ставит его на карточку. Прежние фото остаются в библиотеке. */
+export async function addHeroPhoto(coupleId: string, userId: string, image: Blob, thumb: Blob | null) {
+  const storage = db().storage.from(HERO_BUCKET);
+  const id = crypto.randomUUID();
+  const path = `${coupleId}/${id}.jpg`;
+  const thumbPath = thumb ? `${coupleId}/${id}_t.jpg` : null;
+  const { error: uploadError } = await storage.upload(path, image, { contentType: "image/jpeg", upsert: false });
+  if (uploadError) throw new AppError(/size|too large|exceed/i.test(uploadError.message) ? "Фото получилось слишком большим. Выберите другое." : HINT);
+  let thumbOk = false;
+  if (thumb && thumbPath) thumbOk = !(await storage.upload(thumbPath, thumb, { contentType: "image/jpeg", upsert: false })).error;
+  const { error } = await db().from("hero_photos").insert({ couple_id: coupleId, uploaded_by: userId, path, thumb_path: thumbOk ? thumbPath : null });
+  if (error) { await storage.remove([path, ...(thumbOk && thumbPath ? [thumbPath] : [])]); throw new AppError(LIB_HINT); }
+  await selectHeroPhoto(coupleId, path);
+}
+
+/** Ставит выбранное из библиотеки фото на карточку и включает его. */
+export async function selectHeroPhoto(coupleId: string, path: string) {
+  const { data, error } = await db().from("couples").update({ hero_photo_path: path, hero_photo_enabled: true, updated_at: new Date().toISOString() }).eq("id", coupleId).select("id");
+  if (error || !data?.length) throw new AppError(LIB_HINT);
+}
+
+/** Показывать фото на карточке или узор. Сам файл остаётся в библиотеке. */
+export async function setHeroEnabled(coupleId: string, enabled: boolean) {
+  const { data, error } = await db().from("couples").update({ hero_photo_enabled: enabled, updated_at: new Date().toISOString() }).eq("id", coupleId).select("id");
+  if (error || !data?.length) throw new AppError(LIB_HINT);
+}
+
+/** Окончательно удаляет фото из библиотеки (с карточки оно тоже пропадёт, если стояло на ней). */
+export async function deleteHeroPhoto(coupleId: string, photo: HeroPhoto, isCurrent: boolean) {
+  const { error } = await db().from("hero_photos").delete().eq("id", photo.id);
+  if (error) throw new AppError("Не удалось удалить фото. Попробуйте ещё раз.");
+  if (isCurrent) await db().from("couples").update({ hero_photo_path: null, updated_at: new Date().toISOString() }).eq("id", coupleId);
+  await db().storage.from(HERO_BUCKET).remove([photo.path, ...(photo.thumb_path ? [photo.thumb_path] : [])]);
+}
+
+export async function heroPhotoUrls(paths: string[]): Promise<Record<string, string>> {
+  if (paths.length === 0) return {};
+  const { data } = await db().storage.from(HERO_BUCKET).createSignedUrls(paths, 3600);
+  const map: Record<string, string> = {};
+  for (const item of data ?? []) if (item.path && item.signedUrl) map[item.path] = item.signedUrl;
+  return map;
 }
 
 export async function setHeroBlur(coupleId: string, blur: boolean) {

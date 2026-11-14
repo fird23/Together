@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ImagePlus, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { AlbumLightbox } from "@/components/album/album-lightbox";
+import { AlbumUploadDialog } from "@/components/album/album-upload-dialog";
 import { useAlbum, useAlbumUpload } from "@/components/album/use-album";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Alert } from "@/components/ui/alert";
@@ -26,6 +27,8 @@ export function AlbumView() {
   const input = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
+  /** Выбранные фото ждут, пока вы укажете даты. */
+  const [pending, setPending] = useState<File[] | null>(null);
 
   if (!couple || !profile) return null;
   if (!featureOn(couple, "album")) {
@@ -48,7 +51,11 @@ export function AlbumView() {
     else groups.push({ key, items: [{ photo, index }] });
   });
   const uploading = progress !== null;
-  const pick = (files: FileList | null) => { if (files && files.length) void run(Array.from(files)); if (input.current) input.current.value = ""; };
+  const pick = (files: FileList | null) => {
+    const images = files ? Array.from(files).filter((f) => f.type.startsWith("image/")) : [];
+    if (images.length) setPending(images);
+    if (input.current) input.current.value = "";
+  };
 
   return (
     <div
@@ -112,6 +119,8 @@ export function AlbumView() {
           ))
         )}
       </div>
+
+      <AlbumUploadDialog files={pending} onClose={() => setPending(null)} onConfirm={(items) => { setPending(null); void run(items); }} />
 
       {open !== null && list.length > 0 && (
         <AlbumLightbox photos={list} thumbs={thumbs} index={open} onIndexChange={setOpen} onClose={() => setOpen(null)} onChanged={() => void reload()} nameOf={nameOf} />

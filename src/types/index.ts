@@ -4,6 +4,8 @@ export type Profile = {
   display_name: string;
   avatar_url: string | null;
   created_at: string;
+  /** Настоящее имя партнёра, если вы назвали его по-своему (тогда display_name это ваше имя для него). */
+  real_name?: string;
 };
 
 export type CoupleFeatures = { habits?: boolean; wishlist?: boolean; todos?: boolean; talk?: boolean; gratitude?: boolean; weekly?: boolean; memories?: boolean; album?: boolean };
@@ -17,6 +19,7 @@ export type Couple = {
   /** Путь к общему фото на карточке «Мы вместе уже» и включено ли размытие. */
   hero_photo_path?: string | null;
   hero_photo_blur?: boolean;
+  hero_photo_enabled?: boolean;
   /** Сила размытия фото в пикселях (0–24). Пусто — по старому переключателю. */
   hero_photo_blur_amount?: number | null;
 };
@@ -50,6 +53,9 @@ export type CalendarEvent = {
   start_day: string; // YYYY-MM-DD (у повтора: день именно этого повтора)
   end_day: string; // YYYY-MM-DD, включительно
   repeat?: EventRepeat;
+  /** Время события (HH:MM). Пусто: пометка на весь день. */
+  start_time?: string | null;
+  end_time?: string | null;
   /** Начало и конец самой пометки (для повторов start_day/end_day описывают конкретный повтор). */
   series_start?: string;
   series_end?: string;
@@ -66,6 +72,7 @@ export type SupportTicket = {
   status: TicketStatus;
   admin_reply: string | null;
   created_at: string;
+  attachments?: string[] | null;
 };
 
 export type AlbumPhoto = {

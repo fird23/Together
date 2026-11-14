@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { Bug, HelpCircle, Lightbulb, MessageCircle, Send, type LucideIcon } from "lucide-react";
+import { Bug, HelpCircle, ImagePlus, Lightbulb, MessageCircle, Send, X, type LucideIcon } from "lucide-react";
 import { Illustration } from "@/components/ui/illustrations";
 import { PageHeader } from "@/components/layout/page-header";
 import { Alert } from "@/components/ui/alert";
@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { GENERIC_ERROR } from "@/lib/errors";
-import { listMyTickets, sendTicket } from "@/services/support";
+import { TicketAttachments } from "@/components/support/ticket-attachments";
+import { MAX_ATTACHMENTS, listMyTickets, removeSupportImages, sendTicket, uploadSupportImages } from "@/services/support";
 import type { SupportTicket, TicketKind, TicketStatus } from "@/types";
 import { cn } from "@/utils/cn";
 
@@ -41,6 +42,8 @@ export function SupportView() {
   const [sent, setSent] = useState(false);
   const [tickets, setTickets] = useState<SupportTicket[] | null>(null);
   const [listError, setListError] = useState("");
+  const [files, setFiles] = useState<{ file: File; preview: string }[]>([]);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const loadTickets = useCallback(async () => {
     try { setTickets(await listMyTickets()); setListError(""); }
@@ -56,8 +59,11 @@ export function SupportView() {
     event.preventDefault();
     if (length < MIN) return setError(`Опишите чуть подробнее: минимум ${MIN} символов.`);
     setPending(true); setError(""); setSent(false);
+    let uploaded: string[] = [];
     try {
+      uploaded = await uploadSupportImages(session!.user.id, files.map((f) => f.file));
       await sendTicket({
+        attachments: uploaded,
         userId: session!.user.id,
         email: profile!.email || session!.user.email || "",
         displayName: profile!.display_name,
@@ -73,8 +79,10 @@ export function SupportView() {
           : null,
       });
       setMessage(""); setSent(true);
+      files.forEach((f) => URL.revokeObjectURL(f.preview)); setFiles([]);
       await loadTickets();
     } catch (e) {
+      if (uploaded.length) await removeSupportImages(uploaded).catch(() => {});
       setError(e instanceof Error ? e.message : GENERIC_ERROR);
     } finally {
       setPending(false);
@@ -108,13 +116,38 @@ export function SupportView() {
               <p className={cn("mt-1 text-right text-xs", length > 0 && length < MIN ? "text-danger" : "text-ink-faint")}>{length} / {MAX}</p>
             </div>
 
+            <div>
+              <input ref={fileInput} type="file" accept="image/*" multiple className="sr-only" tabIndex={-1} onChange={(e) => {
+                const picked = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith("image/"));
+                e.target.value = "";
+                if (picked.length === 0) return;
+                setFiles((old) => [...old, ...picked.slice(0, Math.max(0, MAX_ATTACHMENTS - old.length)).map((file) => ({ file, preview: URL.createObjectURL(file) }))]);
+                if (files.length + picked.length > MAX_ATTACHMENTS) setError(`К обращению можно приложить до ${MAX_ATTACHMENTS} фото.`);
+              }} />
+              <div className="flex flex-wrap items-center gap-3">
+                <Button type="button" variant="secondary" size="sm" onClick={() => fileInput.current?.click()} disabled={pending || files.length >= MAX_ATTACHMENTS}><ImagePlus className="size-4" aria-hidden /> Приложить фото или скриншот</Button>
+                <span className="text-xs text-ink-faint">до {MAX_ATTACHMENTS} штук, {files.length > 0 ? `выбрано ${files.length}` : "необязательно"}</span>
+              </div>
+              {files.length > 0 && (
+                <ul className="mt-3 flex flex-wrap gap-2">
+                  {files.map((f, i) => (
+                    <li key={f.preview} className="relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={f.preview} alt={`Фото ${i + 1}`} className="size-16 rounded-xl object-cover ring-1 ring-sand-200" />
+                      <button type="button" aria-label="Убрать фото" disabled={pending} onClick={() => { URL.revokeObjectURL(f.preview); setFiles((old) => old.filter((x) => x !== f)); }} className="absolute -right-1.5 -top-1.5 grid size-6 place-items-center rounded-full bg-ink text-milk shadow"><X className="size-3.5" aria-hidden /></button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
             <label className="flex cursor-pointer items-start gap-3 text-sm text-ink-soft">
               <input type="checkbox" checked={withInfo} onChange={(e) => setWithInfo(e.target.checked)} className="mt-0.5 size-4 accent-[var(--c-accent-600)]" />
               <span>Приложить сведения об устройстве и странице. Это помогает быстрее найти ошибку. Пароли и личные данные не отправляются.</span>
             </label>
 
             {error && <Alert tone="error">{error}</Alert>}
-            {sent && !error && <Alert tone="success">Спасибо! Обращение отправлено. Ответ появится справа.</Alert>}
+            {sent && !error && <Alert tone="success">Спасибо! Обращение отправлено.</Alert>}
             <Button type="submit" loading={pending}><Send className="size-4" aria-hidden /> Отправить</Button>
           </form>
         </Card>
@@ -142,6 +175,7 @@ export function SupportView() {
                       <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", status.cls)}>{status.label}</span>
                     </div>
                     <p className="line-clamp-4 whitespace-pre-wrap text-sm leading-relaxed text-ink-soft">{t.message}</p>
+                    <TicketAttachments paths={t.attachments} />
                     <p className="mt-2 text-xs text-ink-faint">{new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }).format(new Date(t.created_at))}</p>
                     {t.admin_reply && (
                       <div className="mt-3 rounded-xl bg-accent-50 p-3 text-sm leading-relaxed ring-1 ring-accent-100">
