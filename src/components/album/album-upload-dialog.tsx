@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { Film, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { readPhotoDate } from "@/lib/exif";
+import { MAX_VIDEO_BYTES, canCompressVideo, fmtMB, isVideo } from "@/lib/video";
 import type { AlbumUploadItem } from "@/components/album/use-album";
 
 const localDay = (ms: number) => {
@@ -15,10 +16,9 @@ const todayStr = () => localDay(Date.now());
 
 type Row = { file: File; idx: number; date: string; edited: boolean };
 
-/** Перед загрузкой: к какому дню привязать каждое фото. Дата подставляется из снимка, её можно поменять. */
 export function AlbumUploadDialog({ files, onClose, onConfirm }: { files: File[] | null; onClose: () => void; onConfirm: (items: AlbumUploadItem[]) => void }) {
   return (
-    <Modal open={files !== null} onClose={onClose} title="Добавить в альбом" description="Укажите, когда сделаны фото: в альбоме они встанут по этим датам.">
+    <Modal open={files !== null} onClose={onClose} title="Добавить в альбом" description="Укажите, когда сделаны фото и видео: в альбоме они встанут по этим датам.">
       {files && <UploadForm key={files.map((f) => `${f.name}:${f.size}:${f.lastModified}`).join("|")} files={files} onClose={onClose} onConfirm={onConfirm} />}
     </Modal>
   );
@@ -28,6 +28,7 @@ function UploadForm({ files, onClose, onConfirm }: { files: File[]; onClose: () 
   const [rows, setRows] = useState<Row[]>(() => files.map((file, idx) => ({ file, idx, date: file.lastModified ? localDay(file.lastModified) : todayStr(), edited: false })));
   const [previews, setPreviews] = useState<string[]>([]);
   const [all, setAll] = useState("");
+  const canCompress = canCompressVideo();
   const max = todayStr();
 
   // Дата съёмки из самого снимка точнее даты файла: подставляем её, если вы ещё не меняли дату вручную.
@@ -50,7 +51,9 @@ function UploadForm({ files, onClose, onConfirm }: { files: File[]; onClose: () 
   const setDate = (i: number, date: string) => setRows((prev) => prev.map((r, k) => (k === i ? { ...r, date, edited: true } : r)));
   const remove = (i: number) => setRows((prev) => prev.filter((_, k) => k !== i));
   const applyAll = () => { if (all) setRows((prev) => prev.map((r) => ({ ...r, date: all, edited: true }))); };
-  const valid = rows.length > 0 && rows.every((r) => r.date && r.date <= max);
+  // Видео больше лимита нужно сжать; если браузер этого не умеет, такой ролик загрузить нельзя.
+  const tooBig = (r: Row) => isVideo(r.file) && r.file.size > MAX_VIDEO_BYTES && !canCompress;
+  const valid = rows.length > 0 && rows.every((r) => r.date && r.date <= max && !tooBig(r));
 
   return (
     <div className="space-y-4">
@@ -66,10 +69,14 @@ function UploadForm({ files, onClose, onConfirm }: { files: File[]; onClose: () 
       <ul className="max-h-[42dvh] space-y-2 overflow-y-auto pr-1">
         {rows.map((r, i) => (
           <li key={r.idx} className="flex items-center gap-3 rounded-xl bg-paper p-2 ring-1 ring-sand-200">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={previews[r.idx]} alt="" className="size-14 shrink-0 rounded-lg object-cover" />
+            {isVideo(r.file)
+              ? <span className="relative size-14 shrink-0 overflow-hidden rounded-lg bg-sand-200">{previews[r.idx] && <video src={`${previews[r.idx]}#t=0.1`} muted playsInline preload="metadata" className="size-full object-cover" />}<span className="absolute inset-0 grid place-items-center bg-black/25 text-white"><Film className="size-5" aria-hidden /></span></span>
+              // eslint-disable-next-line @next/next/no-img-element
+              : <img src={previews[r.idx]} alt="" className="size-14 shrink-0 rounded-lg object-cover" />}
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs text-ink-faint">{r.file.name}</p>
+              <p className="truncate text-xs text-ink-faint">{r.file.name}{isVideo(r.file) ? ` · видео, ${fmtMB(r.file.size)}` : ""}</p>
+              {tooBig(r) && <p className="text-xs font-medium text-danger">Больше {fmtMB(MAX_VIDEO_BYTES)}, а сжать в этом браузере нельзя. Обрежьте ролик или уберите его из списка.</p>}
+              {isVideo(r.file) && r.file.size > MAX_VIDEO_BYTES && canCompress && <p className="text-xs text-ink-soft">Больше {fmtMB(MAX_VIDEO_BYTES)}: видео будет сжато автоматически перед загрузкой.</p>}
               <input type="date" value={r.date} max={max} onChange={(e) => setDate(i, e.target.value)} aria-label={`Дата фото ${r.file.name}`} className="hb-input mt-1 w-full" />
             </div>
             <button type="button" onClick={() => remove(i)} aria-label="Убрать фото из списка" className="grid size-9 shrink-0 place-items-center rounded-full text-ink-faint hover:bg-sand-100 hover:text-danger"><X className="size-4" aria-hidden /></button>

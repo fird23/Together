@@ -44,7 +44,9 @@ export function AlbumLightbox({
 
   if (!photo) return null;
 
-  const viewerItems = photos.map((p) => ({ src: full[p.media_path] ?? thumbs[p.thumb_path] ?? "", alt: p.caption || `Фото от ${longDate(p.taken_on)}` }));
+  const viewerItems = photos.map((p) => (p.kind === "video"
+    ? { src: full[p.media_path] ?? "", alt: p.caption || `Видео от ${longDate(p.taken_on)}`, type: "video" as const, poster: p.thumb_path !== p.media_path ? thumbs[p.thumb_path] : undefined }
+    : { src: full[p.media_path] ?? thumbs[p.thumb_path] ?? "", alt: p.caption || `Фото от ${longDate(p.taken_on)}` }));
 
   const startEdit = () => { setCaption(photo.caption ?? ""); setDay(photo.taken_on); setError(""); setEditing(true); };
 
@@ -58,7 +60,7 @@ export function AlbumLightbox({
   }
 
   async function remove() {
-    if (!window.confirm("Удалить это фото из общего альбома? Оно исчезнет у вас обоих.")) return;
+    if (!window.confirm(photo.kind === "video" ? "Удалить это видео из общего альбома? Оно исчезнет у вас обоих." : "Удалить это фото из общего альбома? Оно исчезнет у вас обоих.")) return;
     setBusy(true); setError("");
     try { await deleteAlbumPhoto(photo); onChanged(); }
     catch (e) { setError(e instanceof Error ? e.message : GENERIC_ERROR); }
@@ -72,7 +74,7 @@ export function AlbumLightbox({
       const blob = await (await fetch(url)).blob();
       const href = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = href; a.download = `together-${photo.taken_on}.jpg`;
+      a.href = href; a.download = `together-${photo.taken_on}.${photo.media_path.split(".").pop() ?? "jpg"}`;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(href), 10_000);
     } catch { setError("Не удалось скачать фото. Попробуйте ещё раз."); }
@@ -89,8 +91,8 @@ export function AlbumLightbox({
       toolbar={
         <>
           <button type="button" onClick={startEdit} disabled={busy} aria-label="Изменить подпись и дату" className="viewer-btn"><Pencil size={19} aria-hidden /></button>
-          <button type="button" onClick={() => void download()} aria-label="Скачать фото" className="viewer-btn"><Download size={20} aria-hidden /></button>
-          <button type="button" onClick={() => void remove()} disabled={busy} aria-label="Удалить фото" className="viewer-btn"><Trash2 size={20} aria-hidden /></button>
+          <button type="button" onClick={() => void download()} aria-label={photo.kind === "video" ? "Скачать видео" : "Скачать фото"} className="viewer-btn"><Download size={20} aria-hidden /></button>
+          <button type="button" onClick={() => void remove()} disabled={busy} aria-label={photo.kind === "video" ? "Удалить видео" : "Удалить фото"} className="viewer-btn"><Trash2 size={20} aria-hidden /></button>
         </>
       }
       footer={

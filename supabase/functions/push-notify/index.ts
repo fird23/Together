@@ -22,7 +22,14 @@ async function webPush(): Promise<any | null> {
 
 type Payload = { title: string; body: string; url?: string; tag?: string };
 const MORNING_HOUR = 9;
-const MOODS: Record<string, string> = { great: "🤩 Прекрасно", good: "😊 Хорошо", angry: "😠 Злой", calm: "😌 Спокойно", tired: "😴 Без сил", sad: "🥺 Грустно", stressed: "😰 Тревожно", love: "😍 Влюблён", miss: "🥹 Скучаю", playful: "😜 Игривый" };
+const MOODS: Record<string, string> = {
+  good: "😊 Хорошо", great: "🤩 Прекрасно", love: "😍 Влюблён", happy: "😄 Счастье", joyful: "😁 Радость", excited: "🥳 Восторг", inspired: "✨ Вдохновение", grateful: "🙏 Благодарность",
+  proud: "😎 Гордость", playful: "😜 Игривое", energetic: "💪 Бодрость", cozy: "🥰 Уют", tender: "🫶 Нежность", confident: "😌 Уверенность",
+  calm: "😌 Спокойно", tired: "😴 Без сил", miss: "🥹 Скучаю", thoughtful: "🤔 Задумчиво", bored: "😑 Скучно", sleepy: "🥱 Сонно", curious: "🧐 Любопытно", surprised: "😲 Удивление",
+  confused: "😕 Растерянность", nostalgic: "🌅 Ностальгия", indifferent: "😐 Безразлично", focused: "🎯 Сосредоточенно",
+  sad: "🥺 Грустно", stressed: "😰 Тревожно", angry: "😠 Злой", annoyed: "😤 Раздражение", lonely: "😔 Одиноко", hurt: "💔 Обида", disappointed: "😞 Разочарование", exhausted: "😩 Выжато",
+  overwhelmed: "🤯 Перегруз", afraid: "😨 Страх", ashamed: "😳 Стыд", jealous: "😒 Ревность", guilty: "😓 Вина", sick: "🤒 Нездоровится",
+};
 
 /* ---------- Android (Firebase Cloud Messaging, HTTP v1) ---------- */
 const b64url = (input: string | ArrayBuffer) => {
@@ -149,6 +156,9 @@ function startsOn(start: string, repeat: string, date: string): boolean {
 async function runCron() {
   // Список уведомлений хранит историю 30 дней
   await sb.from("notifications").delete().lt("created_at", new Date(Date.now() - 30 * 86_400_000).toISOString());
+  // Служебные журналы админ-панели: ошибки хранятся 30 дней, заходы по дням год
+  await sb.from("client_errors").delete().lt("created_at", new Date(Date.now() - 30 * 86_400_000).toISOString());
+  await sb.from("activity_days").delete().lt("day", new Date(Date.now() - 400 * 86_400_000).toISOString().slice(0, 10));
   const [{ data: prefs }, { data: members }, { data: couples }] = await Promise.all([
     sb.from("notification_prefs").select("*"),
     sb.from("couple_members").select("user_id,couple_id"),

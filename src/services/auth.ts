@@ -1,5 +1,6 @@
 import { db } from "@/lib/supabase";
 import { AppError, authError } from "@/lib/errors";
+import { clearUrlCache } from "@/lib/signed-urls";
 
 export async function signIn(email: string, password: string) {
   const { error } = await db().auth.signInWithPassword({ email, password });
@@ -47,5 +48,6 @@ export async function changePassword(email: string, currentPassword: string, new
 }
 
 export async function signOut() {
+  clearUrlCache();
   await db().auth.signOut();
 }

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, Maximize, Minimize, X, ZoomIn, ZoomOut } from "lucide-react";
 
-export type ViewerItem = { src: string; alt: string };
+export type ViewerItem = { src: string; alt: string; /** Видео показывается плеером, а не картинкой. */ type?: "image" | "video"; poster?: string };
 
 /**
  * Просмотр фото на весь экран: стрелки и свайп между снимками, Esc закрывает,
@@ -27,7 +27,8 @@ export function MediaViewer({
   const [zoomedAt, setZoomedAt] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const canFullscreen = typeof document !== "undefined" && Boolean(document.fullscreenEnabled);
-  const zoomed = zoomedAt === index;
+  const isVideoItem = items[index]?.type === "video";
+  const zoomed = zoomedAt === index && !isVideoItem;
   const count = items.length;
   const item = items[index];
 
@@ -62,7 +63,7 @@ export function MediaViewer({
 
   // Заранее подгружаем соседние снимки, чтобы листать без паузы.
   useEffect(() => {
-    for (const i of [index - 1, index + 1]) if (items[i]) new Image().src = items[i].src;
+    for (const i of [index - 1, index + 1]) if (items[i] && items[i].type !== "video") new Image().src = items[i].src;
   }, [index, items]);
 
   function toggleFullscreen() {
@@ -85,9 +86,11 @@ export function MediaViewer({
         <span className="min-w-14 text-sm tabular-nums text-white/80">{count > 1 ? `${index + 1} / ${count}` : ""}</span>
         <div className="flex items-center gap-1">
           {toolbar}
-          <button type="button" onClick={() => setZoomedAt(zoomed ? null : index)} aria-label={zoomed ? "Уменьшить" : "Увеличить"} className="viewer-btn">
-            {zoomed ? <ZoomOut size={20} aria-hidden /> : <ZoomIn size={20} aria-hidden />}
-          </button>
+          {!isVideoItem && (
+            <button type="button" onClick={() => setZoomedAt(zoomed ? null : index)} aria-label={zoomed ? "Уменьшить" : "Увеличить"} className="viewer-btn">
+              {zoomed ? <ZoomOut size={20} aria-hidden /> : <ZoomIn size={20} aria-hidden />}
+            </button>
+          )}
           {canFullscreen && (
             <button type="button" onClick={toggleFullscreen} aria-label={fullscreen ? "Выйти из полноэкранного режима" : "На весь экран"} className="viewer-btn hidden sm:grid">
               {fullscreen ? <Minimize size={20} aria-hidden /> : <Maximize size={20} aria-hidden />}
@@ -99,7 +102,7 @@ export function MediaViewer({
 
       <div
         className={`relative min-h-0 flex-1 ${zoomed ? "overflow-auto" : "touch-pan-y overflow-hidden"}`}
-        onPointerDown={(e) => { start.current = { x: e.clientX, y: e.clientY }; swiped.current = false; }}
+        onPointerDown={(e) => { start.current = (e.target as HTMLElement).closest("video") ? null : { x: e.clientX, y: e.clientY }; swiped.current = false; }}
         onPointerUp={(e) => {
           const s = start.current; start.current = null;
           if (!s || zoomed) return;
@@ -109,7 +112,10 @@ export function MediaViewer({
         onClick={(e) => { if (e.target === e.currentTarget && !swiped.current) close(); }}
       >
         <div className={zoomed ? "grid min-h-full min-w-full place-items-center" : "grid h-full w-full place-items-center p-2 sm:p-4"} onClick={(e) => { if (e.target === e.currentTarget && !swiped.current) close(); }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {item.type === "video" ? (
+            <video key={item.src} src={item.src} poster={item.poster} controls autoPlay playsInline preload="metadata" aria-label={item.alt} className="max-h-full max-w-full rounded-lg bg-black" />
+          ) : (
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             key={item.src}
             src={item.src}
@@ -118,6 +124,7 @@ export function MediaViewer({
             onClick={() => { if (!swiped.current) setZoomedAt(zoomed ? null : index); }}
             className={zoomed ? "max-w-none cursor-zoom-out select-none [width:min(220%,2400px)]" : "max-h-full max-w-full cursor-zoom-in select-none object-contain"}
           />
+          )}
         </div>
         {count > 1 && !zoomed && (
           <>

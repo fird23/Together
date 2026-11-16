@@ -1,39 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import type { CSSProperties } from "react";
-import { Check, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import { Check, ChevronDown, Loader2 } from "lucide-react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { supabase } from "@/lib/supabase";
+import { MOOD_GROUPS, defaultMood, moodOf, moodsOfGroup, type MoodGroup } from "@/lib/moods";
 import { MoodIcon } from "@/components/mood/mood-icons";
 import { useRealtime } from "@/hooks/use-realtime";
 
 type Mood = { id: string; user_id: string; mood: string; note: string | null; day: string };
-
-/** hue — акцентный цвет настроения; фоны подмешиваются к теме, поэтому блок одинаково хорош в светлом и тёмном режиме. */
-const choices = [
-  // Хорошее
-  { value: "great", label: "Прекрасно", hue: "#E9A93B" },
-  { value: "good", label: "Хорошо", hue: "#6FAE6B" },
-  { value: "love", label: "Влюблён", hue: "#E5648A" },
-  // Нейтральное
-  { value: "calm", label: "Спокойно", hue: "#6C8FD6" },
-  { value: "tired", label: "Без сил", hue: "#9A82C9" },
-  { value: "miss", label: "Скучаю", hue: "#B36BC9" },
-  // Тяжёлое
-  { value: "sad", label: "Грустно", hue: "#D9708E" },
-  { value: "stressed", label: "Тревожно", hue: "#D98B5B" },
-  { value: "angry", label: "Злой", hue: "#D8584E" },
-];
-
-/** Убранное из списка настроение остаётся в истории и показывается как раньше, но выбрать его уже нельзя. */
-const legacy = [{ value: "playful", label: "Игривый", hue: "#4FB0A5" }];
 
 const todayISO = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 const hueStyle = (hue: string) => ({ "--mood-hue": hue }) as CSSProperties;
+const HOLD_MS = 420;
 
 export function MoodSelector({ compact = false }: { compact?: boolean }) {
   const { couple, profile, partner } = useWorkspace();
@@ -42,6 +25,11 @@ export function MoodSelector({ compact = false }: { compact?: boolean }) {
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  /** Группа, у которой сейчас открыта лента эмоций. */
+  const [openGroup, setOpenGroup] = useState<MoodGroup | null>(null);
+  const hold = useRef<{ timer: number; fired: boolean } | null>(null);
+  const strip = useRef<HTMLDivElement>(null);
+  const root = useRef<HTMLElement>(null);
   const today = todayISO();
 
   const load = useCallback(async () => {
@@ -62,6 +50,23 @@ export function MoodSelector({ compact = false }: { compact?: boolean }) {
   useEffect(() => { void load(); }, [load]);
   useRealtime("mood_entries", load, { filter: couple ? `couple_id=eq.${couple.id}` : undefined, enabled: Boolean(couple) });
 
+  // Лента закрывается по Esc и по нажатию вне блока выбора.
+  useEffect(() => {
+    if (!openGroup) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpenGroup(null); };
+    const onDown = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node)) setOpenGroup(null); };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("pointerdown", onDown);
+    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("pointerdown", onDown); };
+  }, [openGroup]);
+
+  // При открытии ленты показываем выбранную эмоцию.
+  useEffect(() => {
+    if (!openGroup) return;
+    const el = strip.current?.querySelector<HTMLElement>("[aria-selected='true']");
+    el?.scrollIntoView({ inline: "center", block: "nearest" });
+  }, [openGroup]);
+
   const save = async () => {
     if (!supabase || !couple || !profile || !selected) return;
     setSaving(true); setError("");
@@ -71,7 +76,7 @@ export function MoodSelector({ compact = false }: { compact?: boolean }) {
         { couple_id: couple.id, user_id: profile.id, day: today, mood: selected, note: note.trim() || null },
         { onConflict: "couple_id,user_id,day" },
       );
-    if (saveError) setError("Не удалось сохранить отметку. Проверьте миграцию базы данных.");
+    if (saveError) setError("Не удалось сохранить отметку. Если выбрана новая эмоция, примените миграцию 033_mood_catalog.sql.");
     else await load();
     setSaving(false);
   };
@@ -79,15 +84,38 @@ export function MoodSelector({ compact = false }: { compact?: boolean }) {
   const entryOf = (id?: string) => rows.find((r) => r.user_id === id);
   const myEntry = entryOf(profile?.id);
   const unchanged = !!myEntry && myEntry.mood === selected && (myEntry.note ?? "") === note.trim();
+  const selectedDef = moodOf(selected);
+
+  // --- Кнопка группы: нажатие ставит вариант по умолчанию, зажатие (или правый клик) открывает ленту ---
+  function startHold(e: ReactPointerEvent, group: MoodGroup) {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    if (hold.current) window.clearTimeout(hold.current.timer);
+    const state = { fired: false, timer: 0 };
+    state.timer = window.setTimeout(() => {
+      state.fired = true;
+      setOpenGroup(group);
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(12);
+    }, HOLD_MS);
+    hold.current = state;
+  }
+  const cancelHold = () => { if (hold.current) window.clearTimeout(hold.current.timer); };
+  function tapGroup(group: MoodGroup) {
+    if (hold.current?.fired) { hold.current.fired = false; return; } // это было удержание, а не нажатие
+    const current = moodOf(selected);
+    if (current?.group === group) { setOpenGroup(openGroup === group ? null : group); return; } // повторное нажатие: выбрать точнее
+    setSelected(defaultMood(group).id);
+    setOpenGroup(null);
+  }
+  const pick = (id: string) => { setSelected(id); setOpenGroup(null); };
 
   const renderPerson = (name: string, entry?: Mood) => {
-    const choice = [...choices, ...legacy].find((c) => c.value === entry?.mood);
+    const choice = moodOf(entry?.mood);
     return (
       <div className={`mood-person ${choice ? "has-mood" : ""}`} style={choice ? hueStyle(choice.hue) : undefined}>
-        <span className="mood-face" aria-hidden="true">{choice ? <MoodIcon mood={choice.value} size={30} /> : <span className="mood-face-empty">?</span>}</span>
+        <span className="mood-face" aria-hidden="true">{choice ? <MoodIcon mood={choice.id} size={30} /> : <span className="mood-face-empty">?</span>}</span>
         <span className="mood-person-copy">
           <small className="mood-person-name">{name}</small>
-          <strong>{choice?.label ?? "Ещё не выбрано"}</strong>
+          <strong>{choice?.label ?? (entry?.mood ? entry.mood : "Ещё не выбрано")}</strong>
           {entry?.note && <em title={entry.note}>{entry.note}</em>}
         </span>
       </div>
@@ -95,33 +123,60 @@ export function MoodSelector({ compact = false }: { compact?: boolean }) {
   };
 
   return (
-    <section className={`dashboard-card mood-selector-card ${compact ? "mood-selector-compact" : ""}`}>
+    <section ref={root} className={`dashboard-card mood-selector-card ${compact ? "mood-selector-compact" : ""}`}>
       <div className="mood-pair">
         {renderPerson("Вы", myEntry)}
         {renderPerson(partner?.display_name ?? "Партнёр", entryOf(partner?.id))}
       </div>
 
       <p className="mood-question">Как вы сегодня?</p>
-      <div className="mood-choice-grid" role="radiogroup" aria-label="Ваше настроение сегодня">
-        {choices.map((choice) => {
-          const active = selected === choice.value;
+      <div className="mg-groups" role="radiogroup" aria-label="Ваше настроение сегодня">
+        {MOOD_GROUPS.map((group) => {
+          const picked = selectedDef?.group === group.id ? selectedDef : null;
+          const shown = picked ?? defaultMood(group.id);
+          const open = openGroup === group.id;
           return (
-            <button
-              type="button"
-              key={choice.value}
-              role="radio"
-              aria-checked={active}
-              onClick={() => setSelected(choice.value)}
-              style={hueStyle(choice.hue)}
-              className={`mood-choice ${active ? "is-selected" : ""}`}
-            >
-              <span className="mood-choice-emoji" aria-hidden="true"><MoodIcon mood={choice.value} size={26} /></span>
-              <span className="mood-choice-label">{choice.label}</span>
-              {active && <Check size={13} className="mood-choice-check" aria-hidden="true" />}
-            </button>
+            <div key={group.id} className="mg-group">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={Boolean(picked)}
+                aria-expanded={open}
+                aria-label={`${group.label}${picked ? `: ${picked.label}` : ""}. Зажмите, чтобы выбрать точнее`}
+                style={hueStyle(shown.hue)}
+                className={`mg-btn mg-${group.id} ${picked ? "is-selected" : ""} ${open ? "is-open" : ""}`}
+                onClick={() => tapGroup(group.id)}
+                onPointerDown={(e) => startHold(e, group.id)}
+                onPointerUp={cancelHold}
+                onPointerLeave={cancelHold}
+                onPointerCancel={cancelHold}
+                onContextMenu={(e) => { e.preventDefault(); setOpenGroup(group.id); }}
+                onKeyDown={(e) => { if (e.key === "ArrowDown") { e.preventDefault(); setOpenGroup(group.id); } }}
+              >
+                <span className="mg-face" aria-hidden="true"><MoodIcon mood={shown.id} size={38} /></span>
+                <span className="mg-name">{group.label}</span>
+                <span className="mg-value">{shown.label}</span>
+                {picked && <Check size={14} className="mg-check" aria-hidden="true" />}
+              </button>
+              <button type="button" className="mg-more" onClick={() => setOpenGroup(open ? null : group.id)} aria-label={`Другие эмоции: ${group.label}`} aria-expanded={open}>
+                <ChevronDown size={14} aria-hidden="true" />
+              </button>
+            </div>
           );
         })}
       </div>
+
+      {openGroup && (
+        <div ref={strip} className="mg-strip" role="listbox" aria-label={`Эмоции: ${MOOD_GROUPS.find((g) => g.id === openGroup)!.label}`}>
+          {moodsOfGroup(openGroup).map((m) => (
+            <button type="button" key={m.id} role="option" aria-selected={selected === m.id} style={hueStyle(m.hue)} className={`mg-item ${selected === m.id ? "is-selected" : ""}`} onClick={() => pick(m.id)}>
+              <MoodIcon mood={m.id} size={38} />
+              <span>{m.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <p className="mg-hint"><span className="mg-hint-touch">Нажмите: вариант по умолчанию. Зажмите кнопку: выбрать точнее.</span><span className="mg-hint-mouse">Нажмите: вариант по умолчанию. Стрелка или правый клик: выбрать точнее.</span></p>
 
       <div className="mood-note-action-row">
         <label className="sr-only" htmlFor="mood-note">Комментарий к настроению</label>

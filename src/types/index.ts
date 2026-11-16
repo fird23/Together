@@ -84,6 +84,10 @@ export type AlbumPhoto = {
   caption: string | null;
   taken_on: string; // YYYY-MM-DD
   created_at: string;
+  /** Фото или видео (по умолчанию фото). */
+  kind?: "photo" | "video";
+  duration_sec?: number | null;
+  size_bytes?: number | null;
 };
 
 export type AdminTicket = SupportTicket & {
@@ -143,3 +147,23 @@ export type TalkThread = { id: string; couple_id: string; author_id: string; kin
 export type TalkReply = { id: string; thread_id: string; author_id: string; body: string; created_at: string; media_path?: string | null; edited_at?: string | null };
 
 export type GratitudeNote = { id: string; user_id: string; day: string; text: string; created_at: string };
+
+export type DayCount = { day: string; users: number };
+
+export type AdminOverview = {
+  users: { total: number; new_7d: number; new_30d: number; active_today: number; active_7d: number; active_30d: number; never_seen: number };
+  couples: { total: number; complete: number; single: number; active_7d: number; active_30d: number };
+  dau: DayCount[];
+  signups: DayCount[];
+  usage_7d: Record<string, number>;
+  features_off: Record<string, number>;
+  platforms: Record<string, number>;
+  builds: { build: string; users: number }[];
+  push: { android_devices: number; web_users: number; prefs_users: number; inbox_total: number; inbox_unread: number };
+  storage: Record<string, { files: number; bytes: number }>;
+  album: { photos: number; videos: number };
+  support: { open: number; avg_reply_hours: number | null; oldest_open_days: number | null; by_status: Record<string, number> };
+  errors: { last_24h: number; last_7d: number };
+};
+
+export type ErrorGroup = { message: string; n: number; users: number; last_at: string; path: string | null; build: string | null; stack: string | null };

@@ -1,6 +1,7 @@
 import { db } from "@/lib/supabase";
 import { AppError, dbError } from "@/lib/errors";
-import type { AdminStats, AdminTicket, AuditEntry, TicketStatus } from "@/types";
+import { buildLabel, platformName } from "@/lib/app-info";
+import type { AdminOverview, AdminStats, AdminTicket, AuditEntry, ErrorGroup, TicketStatus } from "@/types";
 
 /** Администратор ли текущий пользователь. Любая ошибка (например, миграция не применена) значит «нет». */
 export async function isAdmin(): Promise<boolean> {
@@ -18,7 +19,7 @@ export async function touchLastSeen(): Promise<void> {
     const key = "together:last-seen";
     const last = Number(window.localStorage.getItem(key) ?? 0);
     if (Date.now() - last < 30 * 60_000) return;
-    const { error } = await db().rpc("touch_last_seen");
+    const { error } = await db().rpc("touch_last_seen", { p_platform: platformName(), p_build: await buildLabel() });
     if (!error) window.localStorage.setItem(key, String(Date.now()));
   } catch {
     /* не критично */
@@ -59,4 +60,17 @@ export async function listAudit(): Promise<AuditEntry[]> {
     .limit(20);
   if (error) throw dbError(error);
   return (data ?? []) as AuditEntry[];
+}
+
+/** Общий отчёт (миграция 035). Если её ещё нет, возвращает null, и панель покажет прежнюю сводку. */
+export async function getAdminOverview(): Promise<AdminOverview | null> {
+  const { data, error } = await db().rpc("admin_overview");
+  if (error) return null;
+  return data as AdminOverview;
+}
+
+export async function getAdminErrors(): Promise<ErrorGroup[]> {
+  const { data, error } = await db().rpc("admin_errors");
+  if (error) return [];
+  return (data ?? []) as ErrorGroup[];
 }

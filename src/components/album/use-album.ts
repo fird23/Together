@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { useRealtime } from "@/hooks/use-realtime";
 import { GENERIC_ERROR } from "@/lib/errors";
-import { albumCount, albumUrls, listAlbum, uploadAlbumPhoto } from "@/services/album";
+import { isVideo } from "@/lib/video";
+import { albumCount, albumUrls, listAlbum, uploadAlbumItem } from "@/services/album";
 import type { AlbumPhoto } from "@/types";
 
 export const MAX_ALBUM_FILES = 30;
@@ -47,29 +48,33 @@ export function useAlbum(limit?: number) {
 
 export type AlbumUploadItem = { file: File; takenOn: string };
 
-/** Загрузка нескольких фото по очереди с прогрессом. Каждое фото ставится на свою дату. */
+/** Загрузка фото и видео по очереди с прогрессом. Каждый файл ставится на свою дату. */
 export function useAlbumUpload(onUploaded: () => void) {
   const { couple, profile } = useWorkspace();
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number; stage?: string; fraction?: number } | null>(null);
   const [error, setError] = useState("");
 
   const run = useCallback(async (items: AlbumUploadItem[]) => {
     if (!couple || !profile || items.length === 0) return;
-    const images = items.filter((i) => i.file.type.startsWith("image/"));
-    if (images.length === 0) { setError("Выберите фотографии: файлы других типов не подойдут."); return; }
+    const images = items.filter((i) => i.file.type.startsWith("image/") || isVideo(i.file));
+    if (images.length === 0) { setError("Выберите фото или видео: файлы других типов не подойдут."); return; }
     const batch = images.slice(0, MAX_FILES);
     setError("");
     let failed = 0;
     let firstError = "";
     for (let i = 0; i < batch.length; i++) {
       setProgress({ done: i, total: batch.length });
-      try { await uploadAlbumPhoto(couple.id, profile.id, batch[i].file, batch[i].takenOn); }
+      try {
+        await uploadAlbumItem(couple.id, profile.id, batch[i].file, batch[i].takenOn, {
+          onStage: (stage, fraction) => setProgress({ done: i, total: batch.length, stage, fraction }),
+        });
+      }
       catch (e) { failed++; if (!firstError) firstError = e instanceof Error ? e.message : GENERIC_ERROR; }
     }
     setProgress(null);
     const notes: string[] = [];
-    if (images.length > MAX_FILES) notes.push(`За один раз загружается до ${MAX_FILES} фото, остальные выберите ещё раз.`);
-    if (images.length < items.length) notes.push("Файлы, которые не являются фотографиями, пропущены.");
+    if (images.length > MAX_FILES) notes.push(`За один раз загружается до ${MAX_FILES} файлов, остальные выберите ещё раз.`);
+    if (images.length < items.length) notes.push("Файлы, которые не являются фото или видео, пропущены.");
     if (failed > 0) notes.push(`Не загрузилось: ${failed} из ${batch.length}. ${firstError}`);
     setError(notes.join(" "));
     onUploaded();

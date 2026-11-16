@@ -5,6 +5,7 @@ import android.app.NotificationManager;
 import android.appwidget.AppWidgetManager;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.os.Build;
 
 import com.getcapacitor.JSObject;
@@ -78,5 +79,52 @@ public class TogetherNativePlugin extends Plugin {
         JSObject result = new JSObject();
         result.put("requested", requested);
         call.resolve(result);
+    }
+
+    // ---- Смена иконки приложения: у каждой иконки свой activity-alias в манифесте, включён всегда ровно один ----
+    private static final String[] ICONS = {"classic", "night", "sunset", "mint", "rose", "graphite"};
+
+    private ComponentName iconComponent(Context context, String icon) {
+        String name = Character.toUpperCase(icon.charAt(0)) + icon.substring(1);
+        return new ComponentName(context.getPackageName(), "app.together.couple.Icon" + name);
+    }
+
+    @PluginMethod
+    public void getAppIcon(PluginCall call) {
+        Context context = getContext();
+        PackageManager pm = context.getPackageManager();
+        String current = "classic";
+        for (String icon : ICONS) {
+            int state = pm.getComponentEnabledSetting(iconComponent(context, icon));
+            if (state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                    || (state == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && icon.equals("classic"))) {
+                current = icon;
+                if (state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED) break;
+            }
+        }
+        JSObject result = new JSObject();
+        result.put("icon", current);
+        call.resolve(result);
+    }
+
+    @PluginMethod
+    public void setAppIcon(PluginCall call) {
+        String chosen = call.getString("icon");
+        boolean known = false;
+        for (String icon : ICONS) if (icon.equals(chosen)) known = true;
+        if (!known) {
+            call.reject("Неизвестная иконка");
+            return;
+        }
+        Context context = getContext();
+        PackageManager pm = context.getPackageManager();
+        // Сначала включаем выбранную, потом выключаем остальные: так значок на экране приложений не исчезает.
+        pm.setComponentEnabledSetting(iconComponent(context, chosen), PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP);
+        for (String icon : ICONS) {
+            if (!icon.equals(chosen)) {
+                pm.setComponentEnabledSetting(iconComponent(context, icon), PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP);
+            }
+        }
+        call.resolve();
     }
 }

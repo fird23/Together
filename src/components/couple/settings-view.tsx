@@ -8,6 +8,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { ButtonLink } from "@/components/ui/button";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { AppearanceSettings } from "@/components/couple/appearance-settings";
+import { AppIconSettings } from "@/components/couple/app-icon-settings";
 import { ChangePasswordForm } from "@/components/couple/change-password-form";
 import { DissolveCouple } from "@/components/couple/dissolve-couple";
 import { DeleteAccount } from "@/components/couple/delete-account";
@@ -146,6 +147,8 @@ export function SettingsView() {
         <div className="max-w-3xl space-y-5">
           <Section id="appearance" icon={Palette} title="Оформление" description="Режим и цветовая тема приложения.">
             <AppearanceSettings />
+            {/* Иконка нужна только на телефоне */}
+            <div className="mt-6 border-t border-sand-200 pt-6 md:hidden"><AppIconSettings /></div>
           </Section>
 
           {/* Нижняя панель есть только на телефоне, поэтому на компьютере этой настройки нет */}

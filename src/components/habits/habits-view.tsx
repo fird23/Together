@@ -193,8 +193,9 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
   const saveEdit = async (id: string, d: HabitDraft) => {
     if (!supabase) return;
     const hadTarget = Boolean(habits.find((h) => h.id === id)?.target_value);
-    const { error: updateError } = await supabase.from("habits").update({ title: d.title.trim(), color: d.color, icon: d.icon, ...scheduleColumns(d), ...(d.kind === "number" || hadTarget ? targetColumns(d) : {}) }).eq("id", id);
-    if (updateError) throw new Error("update failed");
+    const { data: updated, error: updateError } = await supabase.from("habits").update({ title: d.title.trim(), color: d.color, icon: d.icon, ...scheduleColumns(d), ...(d.kind === "number" || hadTarget ? targetColumns(d) : {}) }).eq("id", id).select("id");
+    if (updateError) throw new Error(updateError.message || "Неизвестная ошибка базы данных.");
+    if (!updated?.length) throw new Error("Изменение не сохранено: база данных не вернула обновлённую запись. Проверьте права доступа (RLS) и членство в паре.");
     await load(true);
   };
 

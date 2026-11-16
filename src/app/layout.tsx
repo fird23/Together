@@ -1,5 +1,7 @@
 import { NativeBridge } from "@/components/native/native-bridge";
 import { KeyboardAware } from "@/components/layout/keyboard-aware";
+import { ErrorReporter } from "@/components/layout/error-reporter";
+import { AppIconApplier } from "@/components/native/app-icon-applier";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { themeInitScript } from "@/lib/theme-script";
@@ -27,6 +29,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <NativeBridge />
         <KeyboardAware />
+        <ErrorReporter />
+        <AppIconApplier />
         <WorkspaceProvider>{children}</WorkspaceProvider>
       </body>
     </html>

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { ImagePlus, Loader2 } from "lucide-react";
+import { ImagePlus, Loader2, Play } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { AlbumLightbox } from "@/components/album/album-lightbox";
 import { AlbumUploadDialog } from "@/components/album/album-upload-dialog";
@@ -13,7 +13,10 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { featureOn } from "@/utils/features";
 import { cn } from "@/utils/cn";
+import { isVideo } from "@/lib/video";
 import type { AlbumPhoto } from "@/types";
+
+const clock = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
 
 const monthLabel = (key: string) => {
   const text = new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(new Date(`${key}-15T12:00:00`));
@@ -52,7 +55,7 @@ export function AlbumView() {
   });
   const uploading = progress !== null;
   const pick = (files: FileList | null) => {
-    const images = files ? Array.from(files).filter((f) => f.type.startsWith("image/")) : [];
+    const images = files ? Array.from(files).filter((f) => f.type.startsWith("image/") || isVideo(f)) : [];
     if (images.length) setPending(images);
     if (input.current) input.current.value = "";
   };
@@ -69,10 +72,10 @@ export function AlbumView() {
         description={list.length > 0 ? `Общих фотографий: ${list.length}. Нажмите на фото, чтобы открыть его на весь экран.` : "Общие фотографии пары: видны только вам двоим."}
         actions={
           <>
-            <input ref={input} type="file" accept="image/*" multiple className="sr-only" tabIndex={-1} onChange={(e) => pick(e.target.files)} />
+            <input ref={input} type="file" accept="image/*,video/*" multiple className="sr-only" tabIndex={-1} onChange={(e) => pick(e.target.files)} />
             <Button onClick={() => input.current?.click()} disabled={uploading}>
               {uploading ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <ImagePlus className="size-4" aria-hidden />}
-              {uploading ? `Загружаем ${Math.min(progress.done + 1, progress.total)} из ${progress.total}…` : "Добавить фото"}
+              {uploading ? `${progress.stage ?? "Загружаем"}${progress.fraction !== undefined ? ` ${Math.round(progress.fraction * 100)}%` : ""} (${Math.min(progress.done + 1, progress.total)} из ${progress.total})` : "Добавить фото и видео"}
             </Button>
           </>
         }
@@ -88,8 +91,8 @@ export function AlbumView() {
           <div className="rounded-card border border-dashed border-sand-300 bg-paper px-5 py-12">
             <EmptyState
               icon={ImagePlus}
-              title="Здесь будут ваши фото"
-              description="Добавьте первые фотографии: с телефона или перетащите их сюда с компьютера. Дата берётся из файла, её можно поменять."
+              title="Здесь будут ваши фото и видео"
+              description="Добавьте первые фото и видео (до 20 МБ): с телефона или перетащите их сюда с компьютера. Дату съёмки можно выбрать при добавлении."
               action={<Button onClick={() => input.current?.click()} disabled={uploading}><ImagePlus className="size-4" aria-hidden /> Добавить фото</Button>}
             />
           </div>
@@ -103,12 +106,18 @@ export function AlbumView() {
                     <button
                       type="button"
                       onClick={() => setOpen(index)}
-                      aria-label={photo.caption ? `Открыть фото: ${photo.caption}` : "Открыть фото на весь экран"}
+                      aria-label={photo.caption ? `Открыть: ${photo.caption}` : photo.kind === "video" ? "Открыть видео" : "Открыть фото на весь экран"}
                       className="group relative block aspect-square w-full overflow-hidden rounded-xl bg-sand-100 ring-1 ring-sand-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-600"
                     >
-                      {thumbs[photo.thumb_path] && (
+                      {thumbs[photo.thumb_path] && photo.thumb_path !== photo.media_path && (
                         /* eslint-disable-next-line @next/next/no-img-element */
                         <img src={thumbs[photo.thumb_path]} alt={photo.caption ?? ""} loading="lazy" className="size-full object-cover transition duration-200 group-hover:scale-[1.04]" />
+                      )}
+                      {photo.kind === "video" && (
+                        <span className="pointer-events-none absolute inset-0 grid place-items-center">
+                          <span className="grid size-9 place-items-center rounded-full bg-black/55 text-white"><Play className="size-4 translate-x-px" fill="currentColor" aria-hidden /></span>
+                          {photo.duration_sec ? <span className="absolute bottom-1 right-1.5 rounded bg-black/60 px-1 text-[10px] font-semibold tabular-nums text-white">{clock(photo.duration_sec)}</span> : null}
+                        </span>
                       )}
                       {photo.caption && <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/60 to-transparent px-2 pb-1.5 pt-6 text-left text-[11px] font-medium text-white">{photo.caption}</span>}
                     </button>

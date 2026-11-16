@@ -1,4 +1,5 @@
 import { db } from "@/lib/supabase";
+import { LONG_CACHE, signedUrls } from "@/lib/signed-urls";
 import { AppError } from "@/lib/errors";
 
 export const HERO_BUCKET = "couple-photos";
@@ -21,10 +22,10 @@ export async function addHeroPhoto(coupleId: string, userId: string, image: Blob
   const id = crypto.randomUUID();
   const path = `${coupleId}/${id}.jpg`;
   const thumbPath = thumb ? `${coupleId}/${id}_t.jpg` : null;
-  const { error: uploadError } = await storage.upload(path, image, { contentType: "image/jpeg", upsert: false });
+  const { error: uploadError } = await storage.upload(path, image, { contentType: "image/jpeg", upsert: false, cacheControl: LONG_CACHE });
   if (uploadError) throw new AppError(/size|too large|exceed/i.test(uploadError.message) ? "Фото получилось слишком большим. Выберите другое." : HINT);
   let thumbOk = false;
-  if (thumb && thumbPath) thumbOk = !(await storage.upload(thumbPath, thumb, { contentType: "image/jpeg", upsert: false })).error;
+  if (thumb && thumbPath) thumbOk = !(await storage.upload(thumbPath, thumb, { contentType: "image/jpeg", upsert: false, cacheControl: LONG_CACHE })).error;
   const { error } = await db().from("hero_photos").insert({ couple_id: coupleId, uploaded_by: userId, path, thumb_path: thumbOk ? thumbPath : null });
   if (error) { await storage.remove([path, ...(thumbOk && thumbPath ? [thumbPath] : [])]); throw new AppError(LIB_HINT); }
   await selectHeroPhoto(coupleId, path);
@@ -51,11 +52,7 @@ export async function deleteHeroPhoto(coupleId: string, photo: HeroPhoto, isCurr
 }
 
 export async function heroPhotoUrls(paths: string[]): Promise<Record<string, string>> {
-  if (paths.length === 0) return {};
-  const { data } = await db().storage.from(HERO_BUCKET).createSignedUrls(paths, 3600);
-  const map: Record<string, string> = {};
-  for (const item of data ?? []) if (item.path && item.signedUrl) map[item.path] = item.signedUrl;
-  return map;
+  return signedUrls(HERO_BUCKET, paths);
 }
 
 export async function setHeroBlur(coupleId: string, blur: boolean) {
@@ -65,8 +62,8 @@ export async function setHeroBlur(coupleId: string, blur: boolean) {
 
 /** Временная ссылка: бакет закрытый, фото открывается только участникам пары. */
 export async function heroPhotoUrl(path: string): Promise<string | null> {
-  const { data, error } = await db().storage.from(HERO_BUCKET).createSignedUrl(path, 3600);
-  return error ? null : data.signedUrl;
+  const map = await signedUrls(HERO_BUCKET, [path]);
+  return map[path] ?? null;
 }
 
 /** Сила размытия в пикселях: новая настройка, а если её нет, прежний переключатель (7 пикселей или без размытия). */

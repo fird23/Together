@@ -9,5 +9,8 @@ export type TogetherNativePlugin = {
   isPushAvailable(): Promise<{ available: boolean }>;
   setWidgetData(options: { json: string }): Promise<void>;
   pinWidget(): Promise<{ requested: boolean }>;
+  /** Смена иконки приложения (id: classic, night, sunset, mint, rose, graphite). */
+  setAppIcon(options: { icon: string }): Promise<void>;
+  getAppIcon(): Promise<{ icon: string }>;
 };
 export const TogetherNative = registerPlugin<TogetherNativePlugin>("TogetherNative");

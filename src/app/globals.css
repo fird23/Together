@@ -1820,3 +1820,31 @@ html[data-kb="open"] dialog.modal { margin-block:.5rem auto; transform:translate
 }
 
 .calendar-full-toolbar.cal-nav-row h2 { text-transform:none; }
+
+/* ===== Настроение: три группы и лента эмоций ===== */
+.mg-groups { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:10px; }
+.mg-group { position:relative; }
+.mg-btn { position:relative; display:flex; width:100%; min-height:112px; flex-direction:column; align-items:center; justify-content:center; gap:3px; padding:12px 6px 10px; border-radius:16px; background:color-mix(in srgb,var(--mood-hue) 12%,var(--c-paper)); box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--mood-hue) 28%,var(--c-sand-200)); color:var(--c-ink); text-align:center; transition:transform .12s, box-shadow .15s, background .15s; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; touch-action:manipulation; }
+.mg-btn:hover { background:color-mix(in srgb,var(--mood-hue) 20%,var(--c-paper)); }
+.mg-btn:active { transform:scale(.97); }
+.mg-btn:focus-visible { outline:2px solid var(--mood-hue); outline-offset:2px; }
+.mg-btn.is-selected { background:color-mix(in srgb,var(--mood-hue) 26%,var(--c-paper)); box-shadow:inset 0 0 0 2px var(--mood-hue); }
+.mg-btn.is-open { box-shadow:inset 0 0 0 2px var(--mood-hue),0 6px 16px -8px var(--mood-hue); }
+.mg-face { display:grid; place-items:center; }
+.mg-name { color:var(--c-ink-faint); font-size:10.5px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; }
+.mg-value { max-width:100%; overflow:hidden; font-size:14px; font-weight:650; text-overflow:ellipsis; white-space:nowrap; }
+.mg-check { position:absolute; top:8px; right:8px; color:var(--mood-hue); }
+.mg-more { position:absolute; right:6px; bottom:6px; display:none; width:24px; height:24px; place-items:center; border-radius:8px; color:var(--c-ink-faint); }
+.mg-more:hover { background:rgb(0 0 0 / .06); color:var(--c-ink); }
+@media (pointer:fine) { .mg-more { display:grid; } }
+.mg-strip { display:flex; gap:8px; margin-top:10px; padding:10px 6px 12px; overflow-x:auto; overscroll-behavior-x:contain; scroll-snap-type:x proximity; border-radius:16px; background:var(--c-sand-100); -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 14px,#000 calc(100% - 14px),transparent 100%); mask-image:linear-gradient(90deg,transparent 0,#000 14px,#000 calc(100% - 14px),transparent 100%); scrollbar-width:thin; animation:mg-in .18s ease; }
+@keyframes mg-in { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
+.mg-item { display:flex; flex:0 0 auto; width:94px; flex-direction:column; align-items:center; gap:5px; padding:9px 2px 8px; scroll-snap-align:center; border-radius:14px; background:color-mix(in srgb,var(--mood-hue) 10%,var(--c-paper)); box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--mood-hue) 25%,var(--c-sand-200)); color:var(--c-ink); font-size:11px; font-weight:600; line-height:1.15; text-align:center; transition:transform .12s; }
+.mg-item span { display:block; min-height:1.2em; max-width:100%; overflow-wrap:normal; word-break:normal; }
+.mg-item:hover { background:color-mix(in srgb,var(--mood-hue) 20%,var(--c-paper)); }
+.mg-item:active { transform:scale(.95); }
+.mg-item.is-selected { background:color-mix(in srgb,var(--mood-hue) 28%,var(--c-paper)); box-shadow:inset 0 0 0 2px var(--mood-hue); }
+.mg-hint { margin:8px 2px 12px; color:var(--c-ink-faint); font-size:11.5px; line-height:1.4; }
+.mg-hint-mouse { display:none; }
+@media (pointer:fine) { .mg-hint-touch { display:none; } .mg-hint-mouse { display:inline; } }
+@media (max-width:420px) { .mg-groups { gap:7px; } .mg-btn { min-height:104px; padding:10px 4px 9px; } .mg-name { font-size:9.5px; letter-spacing:0; } .mg-value { font-size:13px; } }

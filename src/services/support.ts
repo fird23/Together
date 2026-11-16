@@ -1,6 +1,7 @@
 import { db } from "@/lib/supabase";
 import { AppError, dbError } from "@/lib/errors";
 import { compressImage } from "@/lib/image";
+import { LONG_CACHE, signedUrls } from "@/lib/signed-urls";
 import type { SupportTicket, TicketKind } from "@/types";
 
 export const SUPPORT_BUCKET = "support-media";
@@ -14,7 +15,7 @@ export async function uploadSupportImages(userId: string, files: File[]): Promis
     for (const file of files) {
       const blob = await compressImage(file, { maxSide: 1600, maxBytes: 700 * 1024 });
       const path = `${userId}/${crypto.randomUUID()}.jpg`;
-      const { error } = await storage.upload(path, blob, { contentType: "image/jpeg", upsert: false });
+      const { error } = await storage.upload(path, blob, { contentType: "image/jpeg", upsert: false, cacheControl: LONG_CACHE });
       if (error) throw new AppError("Не удалось загрузить фото. Примените миграцию 030_support_attachments.sql или попробуйте ещё раз.");
       paths.push(path);
     }
@@ -30,11 +31,7 @@ export async function removeSupportImages(paths: string[]) {
 }
 
 export async function supportImageUrls(paths: string[]): Promise<Record<string, string>> {
-  if (paths.length === 0) return {};
-  const { data } = await db().storage.from(SUPPORT_BUCKET).createSignedUrls(paths, 3600);
-  const map: Record<string, string> = {};
-  for (const item of data ?? []) if (item.path && item.signedUrl) map[item.path] = item.signedUrl;
-  return map;
+  return signedUrls(SUPPORT_BUCKET, paths);
 }
 
 export async function sendTicket(input: {

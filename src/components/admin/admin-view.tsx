@@ -6,6 +6,7 @@ import { Bug, HelpCircle, Lightbulb, MessageCircle, Send, type LucideIcon } from
 import { PageHeader } from "@/components/layout/page-header";
 import { Alert } from "@/components/ui/alert";
 import { TicketAttachments } from "@/components/support/ticket-attachments";
+import { AdminOverviewPanels } from "@/components/admin/admin-overview";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { GENERIC_ERROR } from "@/lib/errors";
@@ -58,6 +59,8 @@ export function AdminView() {
 
 function AdminContent() {
   const [stats, setStats] = useState<AdminStats | null>(null);
+  /** Пока нет миграции 035, показываем прежнюю короткую сводку. */
+  const [overviewMissing, setOverviewMissing] = useState(false);
   const [statsError, setStatsError] = useState("");
   const [filter, setFilter] = useState<TicketStatus | "all">("new");
   const [tickets, setTickets] = useState<AdminTicket[] | null>(null);
@@ -96,7 +99,9 @@ function AdminContent() {
     <div className="mx-auto max-w-5xl">
       <PageHeader title="Админ-панель" description="Только агрегаты и обращения. Личное содержимое пар здесь недоступно." />
 
-      <section aria-labelledby="admin-stats" className="mb-8">
+      <AdminOverviewPanels onMissing={() => setOverviewMissing(true)} />
+
+      {overviewMissing && <section aria-labelledby="admin-stats" className="mb-8">
         <h2 id="admin-stats" className="mb-3 font-serif text-xl font-semibold">Сводка</h2>
         {statsError ? (
           <Alert tone="error">{statsError}</Alert>
@@ -119,7 +124,7 @@ function AdminContent() {
           </p>
         )}
         <p className="mt-1 text-xs text-ink-faint">Активность считается с момента применения миграции: раньше данных о заходах не было.</p>
-      </section>
+      </section>}
 
       <section aria-labelledby="admin-tickets" className="mb-8">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
