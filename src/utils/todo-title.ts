@@ -5,3 +5,40 @@ export function cleanTodoTitle(raw: string): string {
   }
   return raw;
 }
+
+export interface Subtask {
+  id: string;
+  title: string;
+  done: boolean;
+}
+
+export interface ParsedTodoData {
+  cleanTitle: string;
+  comment: string;
+  subtasks: Subtask[];
+}
+
+export function parseTodoTitle(rawTitle: string): ParsedTodoData {
+  try {
+    if (rawTitle.startsWith("{") && rawTitle.endsWith("}")) {
+      const parsed = JSON.parse(rawTitle);
+      return {
+        cleanTitle: parsed.t || "",
+        comment: parsed.c || "",
+        subtasks: Array.isArray(parsed.s) ? parsed.s : [],
+      };
+    }
+  } catch { /* обычная строка */ }
+  return { cleanTitle: rawTitle, comment: "", subtasks: [] };
+}
+
+export function encodeTodoTitle(cleanTitle: string, comment: string, subtasks: Subtask[]): string {
+  if (!comment.trim() && subtasks.length === 0) {
+    return cleanTitle.trim();
+  }
+  return JSON.stringify({
+    t: cleanTitle.trim(),
+    c: comment.trim(),
+    s: subtasks,
+  });
+}

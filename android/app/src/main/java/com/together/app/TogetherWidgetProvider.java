@@ -1,4 +1,4 @@
-package app.together.couple;
+package com.together.app;
 
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;

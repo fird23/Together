@@ -1,4 +1,4 @@
-package app.together.couple;
+package com.together.app;
 
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -86,7 +86,7 @@ public class TogetherNativePlugin extends Plugin {
 
     private ComponentName iconComponent(Context context, String icon) {
         String name = Character.toUpperCase(icon.charAt(0)) + icon.substring(1);
-        return new ComponentName(context.getPackageName(), "app.together.couple.Icon" + name);
+        return new ComponentName(context.getPackageName(), "com.together.app.Icon" + name);
     }
 
     @PluginMethod

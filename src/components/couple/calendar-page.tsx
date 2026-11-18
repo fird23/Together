@@ -52,7 +52,10 @@ export function CalendarPage() {
   const [anchor, setAnchor] = useState(initialDay ?? today);
   const [weekStart, setWeekStart] = useState(() => mondayOf(initialDay ?? today));
   const [head, setHead] = useState(initialDay ?? today);
-  const [draft, setDraft] = useState<EventDraft | null>(null);
+  // /calendar#new (кнопка «+» на телефоне) сразу открывает создание пометки на сегодня
+  const [draft, setDraft] = useState<EventDraft | null>(() => (typeof window !== "undefined" && window.location.hash === "#new"
+    ? { title: "", note: "", color: "rose", start: initialDay ?? today, end: initialDay ?? today, repeat: "none", allDay: true }
+    : null));
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [actionError, setActionError] = useState("");
   const dragging = useRef(false);
@@ -83,12 +86,6 @@ export function CalendarPage() {
   const monthName = (() => { const t = new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(cursor).replace(/\s*г\.$/, ""); return t.charAt(0).toUpperCase() + t.slice(1); })();
   const selectedEvents = eventsInRange(events, selStart, selEnd);
   const selectedTodos = todos.filter((t) => t.due_day !== null && t.due_day >= selStart && t.due_day <= selEnd);
-
-  // /calendar#new (кнопка «+» на телефоне) сразу открывает создание пометки на сегодня
-  useEffect(() => {
-    if (window.location.hash === "#new") setDraft({ title: "", note: "", color: "rose", start: initialDay ?? today, end: initialDay ?? today, repeat: "none", allDay: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Отпускание кнопки мыши где угодно завершает выделение.
   useEffect(() => {

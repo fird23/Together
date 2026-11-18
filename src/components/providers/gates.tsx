@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { RotateCw } from "lucide-react";
 import { useWorkspace, homePathFor } from "@/components/providers/workspace-provider";
@@ -24,12 +24,25 @@ export function FullScreenLoader({ label = "Загружаем ваше прос
 
 function LoadError() {
   const { refresh, signOut } = useWorkspace();
+  // Нет сети — отдельное понятное сообщение и автоматическая повторная попытка, когда связь вернулась
+  const [offline, setOffline] = useState(() => typeof navigator !== "undefined" && navigator.onLine === false);
+  useEffect(() => {
+    const goOnline = () => { setOffline(false); void refresh(); };
+    const goOffline = () => setOffline(true);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => { window.removeEventListener("online", goOnline); window.removeEventListener("offline", goOffline); };
+  }, [refresh]);
   return (
     <div className="grid min-h-dvh place-items-center bg-milk px-6">
       <div className="max-w-sm text-center">
         <Logo asText />
-        <h1 className="mt-8 font-serif text-2xl font-semibold">Не удалось загрузить данные</h1>
-        <p className="mt-2 text-ink-soft">Проверьте соединение и попробуйте ещё раз. Если ошибка повторяется, выйдите и войдите снова.</p>
+        <h1 className="mt-8 font-serif text-2xl font-semibold">{offline ? "Нет соединения" : "Не удалось загрузить данные"}</h1>
+        <p className="mt-2 text-ink-soft">
+          {offline
+            ? "Похоже, пропал интернет. Как только он появится, мы загрузим данные сами, или нажмите «Повторить»."
+            : "Сервер не ответил. Попробуйте ещё раз через минуту. Если ошибка повторяется, выйдите и войдите снова."}
+        </p>
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
           <Button onClick={() => void refresh()}>
             <RotateCw className="size-4" aria-hidden /> Повторить

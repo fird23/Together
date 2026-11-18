@@ -2,6 +2,7 @@ import { NativeBridge } from "@/components/native/native-bridge";
 import { KeyboardAware } from "@/components/layout/keyboard-aware";
 import { ErrorReporter } from "@/components/layout/error-reporter";
 import { AppIconApplier } from "@/components/native/app-icon-applier";
+import { ServiceWorkerRegister } from "@/components/layout/sw-register";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { themeInitScript } from "@/lib/theme-script";
@@ -12,6 +13,8 @@ export const metadata: Metadata = {
   description: "Приватное приложение для пар: общие дни, важные даты и профиль партнёра.",
   icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },
   appleWebApp: { capable: true, title: "Together", statusBarStyle: "default" },
+  // Приложение закрытое: поисковикам индексировать здесь нечего
+  robots: { index: false, follow: false },
 };
 
 export const viewport: Viewport = {
@@ -31,6 +34,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <KeyboardAware />
         <ErrorReporter />
         <AppIconApplier />
+        <ServiceWorkerRegister />
         <WorkspaceProvider>{children}</WorkspaceProvider>
       </body>
     </html>

@@ -4,12 +4,13 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEv
 import { Check, ChevronDown, ChevronsDownUp, ChevronsUpDown, ExternalLink, Gift, ImagePlus, Link2, Loader2, Lock, Pencil, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { Illustration } from "@/components/ui/illustrations";
 import { useWorkspace } from "@/components/providers/workspace-provider";
-import { supabase } from "@/lib/supabase";
+import { deleteWish, listMarkedIds, listPartnerMarkedIds, listWishes, saveWish, setWishMark } from "@/services/wishlist";
 import { compressImage } from "@/lib/image";
 import { getShareWishlistMarks } from "@/services/privacy";
 import { removeTalkImages, talkImageUrls, uploadTalkImage } from "@/services/talk-media";
 import { useRealtime } from "@/hooks/use-realtime";
 import { ViewableImage } from "@/components/ui/viewable-image";
+import { useLoad } from "@/hooks/use-load";
 
 type Wish = {
   id: string; owner_id: string; title: string; details: string | null;
@@ -123,30 +124,20 @@ export function WishlistView() {
   const toggleItem = (id: string) => { const next = new Set(collapsed); if (!next.delete(id)) next.add(id); saveCollapsed(next); };
 
   const load = useCallback(async () => {
-    if (!supabase || !couple || !profile) return;
-    const { data, error: err } = await supabase
-      .from("wishlist_items")
-      .select("id,owner_id,title,details,link,media_path,created_at")
-      .eq("couple_id", couple.id)
-      .order("created_at", { ascending: false });
-    if (err) { setError("Не удалось загрузить списки. Примените миграцию 020_mood_angry_wishlist_extras.sql."); return; }
-    setItems((data ?? []) as Wish[]);
-    const { data: markRows, error: markErr } = await supabase
-      .from("wishlist_private_marks")
-      .select("wishlist_item_id")
-      .eq("user_id", profile.id);
-    if (markErr) { setError("Не удалось загрузить ваши отметки. Примените миграцию 007_private_wishlist_marks.sql."); return; }
-    setMarks(new Set((markRows ?? []).map((r) => r.wishlist_item_id as string)));
+    if (!couple || !profile) return;
+    const wishes = await listWishes(couple.id);
+    if (!wishes) { setError("Не удалось загрузить списки. Примените миграцию 020_mood_angry_wishlist_extras.sql."); return; }
+    setItems(wishes as Wish[]);
+    const mine = await listMarkedIds(profile.id);
+    if (!mine) { setError("Не удалось загрузить ваши отметки. Примените миграцию 007_private_wishlist_marks.sql."); return; }
+    setMarks(new Set(mine));
 
     // Необязательные данные: если миграция 021 ещё не применена, список всё равно работает.
-    if (partner) {
-      const { data: theirRows } = await supabase.from("wishlist_private_marks").select("wishlist_item_id").eq("user_id", partner.id);
-      setPartnerMarks(new Set((theirRows ?? []).map((r) => r.wishlist_item_id as string)));
-    }
+    if (partner) setPartnerMarks(new Set(await listPartnerMarkedIds(partner.id)));
     setShareMine(await getShareWishlistMarks(profile.id).catch(() => false));
   }, [couple, profile, partner]);
 
-  useEffect(() => { void load(); }, [load]);
+  useLoad(load);
   useRealtime("wishlist_items", load, { filter: couple ? `couple_id=eq.${couple.id}` : undefined, enabled: Boolean(couple) });
 
   // Временные ссылки на фото (бакет закрытый).
@@ -176,7 +167,7 @@ export function WishlistView() {
     values: { title: string; details: string; link: string; photo: Attachment | null; removePhoto: boolean },
     existing?: Wish,
   ): Promise<boolean> {
-    if (!supabase || !couple || !profile || !values.title.trim()) return false;
+    if (!couple || !profile || !values.title.trim()) return false;
     let link: string | null;
     try { link = normalizeLink(values.link); }
     catch { setError("Ссылка выглядит неверно. Пример: https://example.com/товар"); return false; }
@@ -189,10 +180,7 @@ export function WishlistView() {
       else if (values.removePhoto) mediaPath = null;
 
       const fields = { title: values.title.trim(), details: values.details.trim() || null, link, media_path: mediaPath };
-      const { error: err } = existing
-        ? await supabase.from("wishlist_items").update(fields).eq("id", existing.id)
-        : await supabase.from("wishlist_items").insert({ couple_id: couple.id, owner_id: profile.id, ...fields });
-      if (err) throw err;
+      await saveWish(couple.id, profile.id, existing?.id ?? null, fields);
 
       if (existing?.media_path && existing.media_path !== mediaPath) await removeTalkImages([existing.media_path]).catch(() => {});
       setEditing(null);
@@ -206,23 +194,20 @@ export function WishlistView() {
   }
 
   async function toggle(item: Wish) {
-    if (!supabase || !profile) return;
+    if (!profile) return;
     setBusy(item.id); setError("");
     const marked = marks.has(item.id);
-    const { error: err } = marked
-      ? await supabase.from("wishlist_private_marks").delete().eq("wishlist_item_id", item.id).eq("user_id", profile.id)
-      : await supabase.from("wishlist_private_marks").insert({ wishlist_item_id: item.id, user_id: profile.id });
-    if (err) setError("Не удалось обновить отметку.");
+    const done = await setWishMark(item.id, profile.id, !marked);
+    if (!done) setError("Не удалось обновить отметку.");
     else setMarks((old) => { const next = new Set(old); if (marked) next.delete(item.id); else next.add(item.id); return next; });
     setBusy(null);
   }
 
   async function remove(item: Wish) {
-    if (!supabase) return;
     if (!window.confirm(`Удалить «${item.title}»?`)) return;
     setBusy(item.id);
-    const { error: err } = await supabase.from("wishlist_items").delete().eq("id", item.id);
-    if (err) setError("Не удалось удалить пункт.");
+    const removed = await deleteWish(item.id);
+    if (!removed) setError("Не удалось удалить пункт.");
     else {
       if (item.media_path) await removeTalkImages([item.media_path]).catch(() => {});
       await load();

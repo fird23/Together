@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import Link from "next/link";
 import { ArrowLeft, BarChart3, Check, ChevronRight, Flame, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
@@ -13,25 +13,16 @@ import { HabitProgressModal, fmtAmount } from "@/components/habits/habit-progres
 import { colorHex } from "@/utils/calendar";
 import { HabitIcon } from "@/utils/habit-icons";
 import { computeStreak, dueToday, scheduleKind, scheduleLabel } from "@/utils/habit-stats";
-import type { EventColor } from "@/types";
 import { featureOn } from "@/utils/features";
 import { useWorkspace } from "@/components/providers/workspace-provider";
-import { supabase } from "@/lib/supabase";
+import { deleteHabitRow, insertHabit, loadHabitData, saveHabitProgress, setHabitCheckin, updateHabitRow, type Checkin, type Freeze, type Habit, type Progress } from "@/services/habits";
 import { useRealtime } from "@/hooks/use-realtime";
 import { Modal } from "@/components/ui/modal";
 import { HabitStreakCard } from "@/components/habits/habit-streak-card";
 import { HabitStatsPanel } from "@/components/habits/habit-stats-panel";
 import { HabitWeekStrip } from "@/components/habits/habit-week-strip";
 import { dayProgress, overallStreak, pairOverallStreak, recentDays } from "@/utils/habit-overview";
-
-type Habit = {
-  id: string; couple_id: string; owner_id: string | null; scope: "shared" | "personal"; title: string; created_at: string;
-  color?: EventColor | null; icon?: string | null; week_days?: number[] | null; per_week?: number | null;
-  target_value?: number | null; unit?: string | null;
-};
-type Progress = { habit_id: string; user_id: string; day: string; value: number };
-type Checkin = { habit_id: string; user_id: string; day: string };
-type Freeze = { habit_id: string; user_id: string; day: string };
+import { useLoad } from "@/hooks/use-load";
 
 function localISO(date = new Date()) {
   const y = date.getFullYear();
@@ -97,29 +88,20 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
   const today = localISO();
 
   const load = useCallback(async (silent = false) => {
-    if (!supabase || !couple || !profile) return;
+    if (!couple || !profile) return;
     if (!silent) setLoading(true);
     setError("");
-    const { data: habitRows, error: habitError } = await supabase.from("habits").select("*").eq("couple_id", couple.id).order("created_at", { ascending: false });
-    if (habitError) { setError("Не удалось загрузить привычки."); setLoading(false); return; }
-    const list = (habitRows ?? []) as Habit[];
-    setHabits(list);
-    if (list.length) {
-      const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 365);
-      const { data: marks, error: marksError } = await supabase.from("habit_checkins").select("habit_id,user_id,day").in("habit_id", list.map((h) => h.id)).gte("day", localISO(cutoff));
-      if (marksError) setError("Привычки загружены, но отметки пока недоступны.");
-      setCheckins((marks ?? []) as Checkin[]);
-      const { data: frozen, error: freezeError } = await supabase.from("habit_freezes").select("habit_id,user_id,day").in("habit_id", list.map((h) => h.id)).gte("day", localISO(cutoff));
-      setFreezes(freezeError ? [] : ((frozen ?? []) as Freeze[]));
-      // Числа за день для привычек с нормой. Если миграция 023 ещё не применена, просто нет данных.
-      const since = new Date(); since.setDate(since.getDate() - 120);
-      const { data: prog, error: progError } = await supabase.from("habit_progress").select("habit_id,user_id,day,value").in("habit_id", list.map((h) => h.id)).gte("day", localISO(since));
-      setProgress(progError ? [] : ((prog ?? []) as Progress[]).map((p) => ({ ...p, value: Number(p.value) })));
-    } else { setCheckins([]); setFreezes([]); setProgress([]); }
+    const data = await loadHabitData(couple.id);
+    if (data.failed) { setError("Не удалось загрузить привычки."); setLoading(false); return; }
+    if (data.marksFailed) setError("Привычки загружены, но отметки пока недоступны.");
+    setHabits(data.habits);
+    setCheckins(data.checkins);
+    setFreezes(data.freezes);
+    setProgress(data.progress);
     setLoading(false);
   }, [couple, profile]);
 
-  useEffect(() => { void load(); }, [load]);
+  useLoad(load);
   useRealtime("habits", () => load(true), { filter: couple ? `couple_id=eq.${couple.id}` : undefined, enabled: Boolean(couple) });
   useRealtime("habit_checkins", () => load(true), { enabled: Boolean(couple) });
   useRealtime("habit_freezes", () => load(true), { enabled: Boolean(couple) });
@@ -130,15 +112,15 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
 
   const createHabit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!supabase || !couple || !profile) return;
+    if (!couple || !profile) return;
     const problem = validateDraft(draft);
     if (problem) { setError(problem); return; }
     setSaving(true); setError("");
-    const { error: insertError } = await supabase.from("habits").insert({
+    const saved = await insertHabit({
       couple_id: couple.id, owner_id: draft.scope === "personal" ? profile.id : null,
       scope: draft.scope, title: draft.title.trim(), color: draft.color, icon: draft.icon, ...scheduleColumns(draft), ...(draft.kind === "number" ? targetColumns(draft) : {}),
     });
-    if (insertError) setError(draft.kind === "number" ? "Не удалось создать привычку с числом. Проверьте, что применена миграция 023_habit_targets_and_moods.sql." : "Не удалось создать привычку.");
+    if (!saved) setError(draft.kind === "number" ? "Не удалось создать привычку с числом. Проверьте, что применена миграция 023_habit_targets_and_moods.sql." : "Не удалось создать привычку.");
     else { setDraft(emptyDraft()); setShowAdd(false); await load(); }
     setSaving(false);
   };
@@ -155,19 +137,18 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
   };
 
   const toggleDayCheck = async (habitId: string, userId: string, dayStr: string) => {
-    if (!supabase) return;
     const habit = habits.find((h) => h.id === habitId);
     // Привычка с нормой отмечается числом, а не галочкой: открываем ввод числа
     if (habit?.target_value) { setDetail(null); setProgressModal({ habit, day: dayStr }); return; }
     const isChecked = checkins.some((c) => c.habit_id === habitId && c.user_id === userId && c.day === dayStr);
     setError("");
     if (isChecked) {
-      const { error: deleteError } = await supabase.from("habit_checkins").delete().eq("habit_id", habitId).eq("user_id", userId).eq("day", dayStr);
-      if (deleteError) setError("Не удалось снять отметку.");
+      const removed = await setHabitCheckin(habitId, userId, dayStr, false);
+      if (!removed) setError("Не удалось снять отметку.");
       else setCheckins((old) => old.filter((c) => !(c.habit_id === habitId && c.user_id === userId && c.day === dayStr)));
     } else {
-      const { error: insertError } = await supabase.from("habit_checkins").insert({ habit_id: habitId, user_id: userId, day: dayStr });
-      if (insertError) setError("Не удалось сохранить отметку.");
+      const added = await setHabitCheckin(habitId, userId, dayStr, true);
+      if (!added) setError("Не удалось сохранить отметку.");
       else {
         celebrateFor(habitId, userId, dayStr);
         setCheckins((old) => [...old, { habit_id: habitId, user_id: userId, day: dayStr }]);
@@ -177,10 +158,8 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
 
   /** Сохраняет число за день: база сама ставит или снимает отметку «выполнено» по норме. */
   const saveProgress = async (habit: Habit, dayStr: string, value: number) => {
-    if (!supabase || !profile) return;
-    const { data, error: rpcError } = await supabase.rpc("set_habit_progress", { p_habit: habit.id, p_day: dayStr, p_value: value });
-    if (rpcError) throw new Error("progress failed");
-    const reached = data === true;
+    if (!profile) return;
+    const reached = await saveHabitProgress(habit.id, dayStr, value);
     const same = (r: { habit_id: string; user_id: string; day: string }) => r.habit_id === habit.id && r.user_id === profile.id && r.day === dayStr;
     const wasDone = checkins.some(same);
     setProgress((old) => (value > 0 ? [...old.filter((r) => !same(r)), { habit_id: habit.id, user_id: profile.id, day: dayStr, value }] : old.filter((r) => !same(r))));
@@ -191,18 +170,15 @@ export function HabitsView({ compact = false }: { compact?: boolean }) {
   const yesterday = (() => { const d = new Date(`${today}T12:00:00`); d.setDate(d.getDate() - 1); return localISO(d); })();
 
   const saveEdit = async (id: string, d: HabitDraft) => {
-    if (!supabase) return;
     const hadTarget = Boolean(habits.find((h) => h.id === id)?.target_value);
-    const { data: updated, error: updateError } = await supabase.from("habits").update({ title: d.title.trim(), color: d.color, icon: d.icon, ...scheduleColumns(d), ...(d.kind === "number" || hadTarget ? targetColumns(d) : {}) }).eq("id", id).select("id");
-    if (updateError) throw new Error(updateError.message || "Неизвестная ошибка базы данных.");
-    if (!updated?.length) throw new Error("Изменение не сохранено: база данных не вернула обновлённую запись. Проверьте права доступа (RLS) и членство в паре.");
+    await updateHabitRow(id, { title: d.title.trim(), color: d.color, icon: d.icon, ...scheduleColumns(d), ...(d.kind === "number" || hadTarget ? targetColumns(d) : {}) });
     await load(true);
   };
 
   const remove = async (habit: Habit) => {
-    if (!supabase || !window.confirm(`Удалить привычку «${habit.title}» и её историю?`)) return;
-    const { error: deleteError } = await supabase.from("habits").delete().eq("id", habit.id);
-    if (deleteError) setError("Не удалось удалить привычку."); else await load();
+    if (!window.confirm(`Удалить привычку «${habit.title}» и её историю?`)) return;
+    const removed = await deleteHabitRow(habit.id);
+    if (!removed) setError("Не удалось удалить привычку."); else await load();
   };
 
   if (!couple || !profile) return null;

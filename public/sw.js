@@ -1,6 +1,22 @@
 /* Together: service worker для push-уведомлений и установки на экран телефона. */
-self.addEventListener("install", () => self.skipWaiting());
-self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+const OFFLINE_CACHE = "together-offline-v1";
+const OFFLINE_URL = "/offline.html";
+
+self.addEventListener("install", (event) => {
+  // Страница «Нет соединения» лежит в кеше заранее и показывается, когда сайт не открылся.
+  event.waitUntil(caches.open(OFFLINE_CACHE).then((cache) => cache.add(OFFLINE_URL)).catch(() => {}).then(() => self.skipWaiting()));
+});
+self.addEventListener("activate", (event) => event.waitUntil(
+  caches.keys()
+    .then((keys) => Promise.all(keys.filter((key) => key.startsWith("together-offline-") && key !== OFFLINE_CACHE).map((key) => caches.delete(key))))
+    .then(() => self.clients.claim()),
+));
+
+// Только переходы между страницами: при ошибке сети показываем страницу «Нет соединения». Остальные запросы не трогаем.
+self.addEventListener("fetch", (event) => {
+  if (event.request.mode !== "navigate") return;
+  event.respondWith(fetch(event.request).catch(() => caches.match(OFFLINE_URL).then((hit) => hit || Response.error())));
+});
 
 self.addEventListener("push", (event) => {
   let data = {};

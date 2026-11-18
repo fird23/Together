@@ -22,14 +22,51 @@ async function webPush(): Promise<any | null> {
 
 type Payload = { title: string; body: string; url?: string; tag?: string };
 const MORNING_HOUR = 9;
+// <generated:moods>
+// Этот блок создаётся командой npm run sync:moods из src/lib/moods.ts, руками его не правьте.
 const MOODS: Record<string, string> = {
-  good: "😊 Хорошо", great: "🤩 Прекрасно", love: "😍 Влюблён", happy: "😄 Счастье", joyful: "😁 Радость", excited: "🥳 Восторг", inspired: "✨ Вдохновение", grateful: "🙏 Благодарность",
-  proud: "😎 Гордость", playful: "😜 Игривое", energetic: "💪 Бодрость", cozy: "🥰 Уют", tender: "🫶 Нежность", confident: "😌 Уверенность",
-  calm: "😌 Спокойно", tired: "😴 Без сил", miss: "🥹 Скучаю", thoughtful: "🤔 Задумчиво", bored: "😑 Скучно", sleepy: "🥱 Сонно", curious: "🧐 Любопытно", surprised: "😲 Удивление",
-  confused: "😕 Растерянность", nostalgic: "🌅 Ностальгия", indifferent: "😐 Безразлично", focused: "🎯 Сосредоточенно",
-  sad: "🥺 Грустно", stressed: "😰 Тревожно", angry: "😠 Злой", annoyed: "😤 Раздражение", lonely: "😔 Одиноко", hurt: "💔 Обида", disappointed: "😞 Разочарование", exhausted: "😩 Выжато",
-  overwhelmed: "🤯 Перегруз", afraid: "😨 Страх", ashamed: "😳 Стыд", jealous: "😒 Ревность", guilty: "😓 Вина", sick: "🤒 Нездоровится",
+  good: "😊 Хорошо",
+  great: "🤩 Прекрасно",
+  love: "😍 Влюблён",
+  happy: "😄 Счастье",
+  joyful: "😁 Радость",
+  excited: "🥳 Восторг",
+  inspired: "✨ Вдохновение",
+  grateful: "🙏 Благодарность",
+  proud: "😎 Гордость",
+  playful: "😜 Игривое",
+  energetic: "💪 Бодрость",
+  cozy: "🥰 Уют",
+  tender: "🫶 Нежность",
+  confident: "😌 Уверенность",
+  calm: "😌 Спокойно",
+  tired: "😴 Без сил",
+  miss: "🥹 Скучаю",
+  thoughtful: "🤔 Задумчиво",
+  bored: "😑 Скучно",
+  sleepy: "🥱 Сонно",
+  curious: "🧐 Любопытно",
+  surprised: "😲 Удивление",
+  confused: "😕 Растерянность",
+  nostalgic: "🌅 Ностальгия",
+  indifferent: "😐 Безразлично",
+  focused: "🎯 Сосредоточенно",
+  sad: "🥺 Грустно",
+  stressed: "😰 Тревожно",
+  angry: "😠 Злой",
+  annoyed: "😤 Раздражение",
+  lonely: "😔 Одиноко",
+  hurt: "💔 Обида",
+  disappointed: "😞 Разочарование",
+  exhausted: "😩 Выжато",
+  overwhelmed: "🤯 Перегруз",
+  afraid: "😨 Страх",
+  ashamed: "😳 Стыд",
+  jealous: "😒 Ревность",
+  guilty: "😓 Вина",
+  sick: "🤒 Нездоровится",
 };
+// </generated:moods>
 
 /* ---------- Android (Firebase Cloud Messaging, HTTP v1) ---------- */
 const b64url = (input: string | ArrayBuffer) => {
@@ -256,8 +293,18 @@ async function runWebhook(body: { type: string; table: string; record: Record<st
   }
 }
 
+/** Сравнение секрета за постоянное время: по времени ответа нельзя угадать секрет по символам. */
+function secretMatches(received: string | null): boolean {
+  const expected = Deno.env.get("WEBHOOK_SECRET");
+  if (!expected || received === null) return false;
+  const a = new TextEncoder().encode(received), b = new TextEncoder().encode(expected);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a[i] ?? 0) ^ (b[i] ?? 0);
+  return diff === 0;
+}
+
 Deno.serve(async (req) => {
-  if (req.headers.get("x-webhook-secret") !== Deno.env.get("WEBHOOK_SECRET")) return new Response("forbidden", { status: 403 });
+  if (!secretMatches(req.headers.get("x-webhook-secret"))) return new Response("forbidden", { status: 403 });
   try {
     const body = await req.json();
     if (body.type === "test" && typeof body.user_id === "string") {

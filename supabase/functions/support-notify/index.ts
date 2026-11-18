@@ -2,8 +2,18 @@
 // Triggered by a Database Webhook on INSERT into public.support_tickets (see SUPPORT_SETUP.md).
 const KINDS: Record<string, string> = { idea: "💡 Предложение", bug: "🐞 Ошибка", question: "❓ Вопрос", other: "💬 Другое" };
 
+/** Сравнение секрета за постоянное время: по времени ответа нельзя угадать секрет по символам. */
+function secretMatches(received: string | null): boolean {
+  const expected = Deno.env.get("WEBHOOK_SECRET");
+  if (!expected || received === null) return false;
+  const a = new TextEncoder().encode(received), b = new TextEncoder().encode(expected);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a[i] ?? 0) ^ (b[i] ?? 0);
+  return diff === 0;
+}
+
 Deno.serve(async (req) => {
-  if (req.headers.get("x-webhook-secret") !== Deno.env.get("WEBHOOK_SECRET")) {
+  if (!secretMatches(req.headers.get("x-webhook-secret"))) {
     return new Response("forbidden", { status: 403 });
   }
   const { record } = await req.json();

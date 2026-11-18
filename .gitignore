@@ -50,3 +50,4 @@ android/app/src/main/assets/public
 android/app/google-services.json
 *.jks
 *.keystore
+android/.idea/

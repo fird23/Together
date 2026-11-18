@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { colorHex } from "@/utils/calendar";
 import { HabitIcon } from "@/utils/habit-icons";
-import { WEEKDAY_SHORT, isAutoFrozen, isScheduled, completionRate, computePairStreak, computeStreak, dueToday, scheduleKind, scheduleLabel, weeklyCounts, weekdayCounts, type Schedule } from "@/utils/habit-stats";
+import { WEEKDAY_SHORT, isAutoFrozen, isScheduled, completionRate, computePairStreak, computeStreak, scheduleKind, scheduleLabel, weeklyCounts, weekdayCounts, type Schedule } from "@/utils/habit-stats";
 import { pluralRu, todayISO } from "@/utils/days";
 import { cn } from "@/utils/cn";
 import { ChevronLeft, ChevronRight, BarChart2 } from "lucide-react";
@@ -74,7 +74,6 @@ function Body({ habit, checkins, freezes, me, partner, onToggleDay, onOpenGlobal
   const pairStreak = view === "pair" ? computePairStreak(schedule, meDone, pDone, meFrozen, pFrozen, today) : null;
   const current = pairStreak ?? streak.current;
   const rate = completionRate(schedule, done, today, 30);
-  const week = dueToday(schedule, done, today);
   const weeks = weeklyCounts(done, today, 8);
   const weekdays = weekdayCounts(done);
   const maxWeek = Math.max(1, kind === "count" ? schedule.per_week ?? 1 : 7, ...weeks.map((w) => w.count));
@@ -91,7 +90,6 @@ function Body({ habit, checkins, freezes, me, partner, onToggleDay, onOpenGlobal
   };
 
   const yesterdayIso = getPastIso(1);
-  const dayBeforeYesterdayIso = getPastIso(2);
   const activeUserId = view === "partner" ? partner?.id : me.id;
   const canInteract = onToggleDay && view !== "pair" && activeUserId;
 

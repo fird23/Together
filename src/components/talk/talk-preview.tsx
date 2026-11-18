@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, PenLine } from "lucide-react";
 import { Illustration } from "@/components/ui/illustrations";
@@ -10,6 +10,7 @@ import { GENERIC_ERROR } from "@/lib/errors";
 import { listTalk } from "@/services/talk";
 import { cn } from "@/utils/cn";
 import type { TalkKind, TalkReply, TalkThread } from "@/types";
+import { useLoad } from "@/hooks/use-load";
 
 const KIND_LABEL: Record<TalkKind, string> = { complain: "Обидки", say: "Сказать", ask: "Спросить", suggest: "Предложить" };
 const LIMIT = 3;
@@ -25,7 +26,7 @@ export function TalkPreview() {
     try { setData(await listTalk(couple.id)); setError(""); }
     catch (e) { setData((prev) => prev ?? { threads: [], replies: [] }); setError(e instanceof Error ? e.message : GENERIC_ERROR); }
   }, [couple]);
-  useEffect(() => { void load(); }, [load]);
+  useLoad(load);
   useRealtime("talk_threads", load, { filter: couple ? `couple_id=eq.${couple.id}` : undefined, enabled: Boolean(couple) });
   useRealtime("talk_replies", load, { filter: couple ? `couple_id=eq.${couple.id}` : undefined, enabled: Boolean(couple) });
 

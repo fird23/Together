@@ -17,6 +17,8 @@ import { featureOn } from "@/utils/features";
 import { ViewableImage } from "@/components/ui/viewable-image";
 import { cn } from "@/utils/cn";
 import type { TalkKind, TalkReply, TalkThread } from "@/types";
+import { useLoad } from "@/hooks/use-load";
+import { PlainImage } from "@/components/ui/plain-image";
 
 const KINDS: { id: TalkKind; label: string; icon: LucideIcon; hint: string; quick: string[] }[] = [
   { id: "complain", label: "Обидки", icon: CloudRain, hint: "Что вас обидело? Лучше спокойно и без обвинений…", quick: ["Слышу тебя 💜", "Прости, давай обсудим", "Спасибо, что сказал(а)"] },
@@ -58,7 +60,7 @@ export function TalkView() {
     try { setData(await listTalk(couple.id)); setError(""); }
     catch (e) { setData((prev) => prev ?? { threads: [], replies: [] }); setError(e instanceof Error ? e.message : GENERIC_ERROR); }
   }, [couple]);
-  useEffect(() => { void load(); }, [load]);
+  useLoad(load);
   // Ссылки на фото из закрытого хранилища (обновляем, когда появляются новые снимки)
   useEffect(() => {
     if (!data) return;
@@ -209,7 +211,7 @@ export function TalkView() {
               </div>
             )}
             {replyMedia[t.id] && (
-              <div className="talk-attach"><img src={replyMedia[t.id].preview} alt="Выбранное фото" /><button type="button" aria-label="Убрать фото" onClick={() => { URL.revokeObjectURL(replyMedia[t.id].preview); setReplyMedia((m) => { const next = { ...m }; delete next[t.id]; return next; }); }}><X size={14} /></button></div>
+              <div className="talk-attach"><PlainImage src={replyMedia[t.id].preview} alt="Выбранное фото" /><button type="button" aria-label="Убрать фото" onClick={() => { URL.revokeObjectURL(replyMedia[t.id].preview); setReplyMedia((m) => { const next = { ...m }; delete next[t.id]; return next; }); }}><X size={14} /></button></div>
             )}
             <div className="flex gap-2">
               <button type="button" onClick={() => choose(t.id)} aria-label="Прикрепить фото" className="talk-attach-btn icon"><ImagePlus size={17} aria-hidden="true" /></button>
@@ -253,7 +255,7 @@ export function TalkView() {
         </fieldset>
         <textarea ref={bodyRef} value={body} onChange={(e) => setBody(e.target.value)} maxLength={1000} rows={3} placeholder={current.hint} aria-label="Сообщение партнёру" className="cal-textarea mt-3" />
         {attachment && (
-          <div className="talk-attach"><img src={attachment.preview} alt="Выбранное фото" /><button type="button" aria-label="Убрать фото" onClick={() => { URL.revokeObjectURL(attachment.preview); setAttachment(null); }}><X size={14} /></button></div>
+          <div className="talk-attach"><PlainImage src={attachment.preview} alt="Выбранное фото" /><button type="button" aria-label="Убрать фото" onClick={() => { URL.revokeObjectURL(attachment.preview); setAttachment(null); }}><X size={14} /></button></div>
         )}
         <div className="mt-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">

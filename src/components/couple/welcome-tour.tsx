@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { Bell, CalendarDays, Gift, Settings, Smile, Target, type LucideIcon } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -19,18 +19,19 @@ const STEPS = ["Добро пожаловать в Together", "Что здесь
 /** Короткое приветствие при первом входе. Показывается один раз на устройство. */
 export function WelcomeTour() {
   const { profile } = useWorkspace();
-  const [open, setOpen] = useState(false);
+  const [closed, setClosed] = useState(false);
   const [step, setStep] = useState(0);
   const key = profile ? `together-tour-v1-${profile.id}` : null;
-
-  useEffect(() => {
-    if (!key) return;
-    try { if (!window.localStorage.getItem(key)) setOpen(true); } catch { /* без хранилища просто не показываем */ }
+  // Показываем, пока на этом устройстве тур ещё не пройден
+  const unseen = useMemo(() => {
+    if (!key) return false;
+    try { return !window.localStorage.getItem(key); } catch { return false; /* без хранилища просто не показываем */ }
   }, [key]);
+  const open = unseen && !closed;
 
   function finish() {
     if (key) try { window.localStorage.setItem(key, "1"); } catch { /* ignore */ }
-    setOpen(false);
+    setClosed(true);
   }
 
   return (

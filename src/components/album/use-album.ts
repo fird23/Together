@@ -7,6 +7,7 @@ import { GENERIC_ERROR } from "@/lib/errors";
 import { isVideo } from "@/lib/video";
 import { albumCount, albumUrls, listAlbum, uploadAlbumItem } from "@/services/album";
 import type { AlbumPhoto } from "@/types";
+import { useLoad } from "@/hooks/use-load";
 
 export const MAX_ALBUM_FILES = 30;
 const MAX_FILES = MAX_ALBUM_FILES;
@@ -33,7 +34,7 @@ export function useAlbum(limit?: number) {
     }
   }, [couple, limit]);
 
-  useEffect(() => { void load(); }, [load]);
+  useLoad(load);
   useRealtime("album_photos", load, { filter: couple ? `couple_id=eq.${couple.id}` : undefined, enabled: Boolean(couple) });
 
   // Ссылки действуют час: при возвращении на вкладку обновляем их заранее.

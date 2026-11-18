@@ -1,5 +1,6 @@
 import { db } from "@/lib/supabase";
 import { dbError } from "@/lib/errors";
+import { clearUrlCache } from "@/lib/signed-urls";
 import { generateInviteToken, sha256Hex } from "@/lib/invite";
 import type { InvitePreview, InviteState } from "@/types";
 
@@ -65,4 +66,5 @@ export async function updateStartDate(coupleId: string, startDate: string) {
 export async function dissolveCouple() {
   const { error } = await db().rpc("dissolve_couple");
   if (error) throw dbError(error);
+  clearUrlCache(); // ссылки на общие фото больше не нужны этому устройству
 }

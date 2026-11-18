@@ -4,12 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { Check, ChevronDown, Loader2 } from "lucide-react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
-import { supabase } from "@/lib/supabase";
+import { loadMoodsForDay, saveMood } from "@/services/moods";
 import { MOOD_GROUPS, defaultMood, moodOf, moodsOfGroup, type MoodGroup } from "@/lib/moods";
 import { MoodIcon } from "@/components/mood/mood-icons";
 import { useRealtime } from "@/hooks/use-realtime";
+import type { MoodRow as Mood } from "@/services/moods";
+import { useLoad } from "@/hooks/use-load";
 
-type Mood = { id: string; user_id: string; mood: string; note: string | null; day: string };
 
 const todayISO = () => {
   const d = new Date();
@@ -33,21 +34,16 @@ export function MoodSelector({ compact = false }: { compact?: boolean }) {
   const today = todayISO();
 
   const load = useCallback(async () => {
-    if (!supabase || !couple || !profile) return;
-    const { data, error: queryError } = await supabase
-      .from("mood_entries")
-      .select("id,user_id,mood,note,day")
-      .eq("couple_id", couple.id)
-      .eq("day", today);
-    if (queryError) { setError("Не удалось загрузить настроение. Примените SQL-миграцию 005_mood.sql."); return; }
-    const list = (data ?? []) as Mood[];
+    if (!couple || !profile) return;
+    const list = await loadMoodsForDay(couple.id, today);
+    if (!list) { setError("Не удалось загрузить настроение. Примените SQL-миграцию 005_mood.sql."); return; }
     setRows(list);
     const mine = list.find((r) => r.user_id === profile.id);
     setSelected(mine?.mood ?? "");
     setNote(mine?.note ?? "");
   }, [couple, profile, today]);
 
-  useEffect(() => { void load(); }, [load]);
+  useLoad(load);
   useRealtime("mood_entries", load, { filter: couple ? `couple_id=eq.${couple.id}` : undefined, enabled: Boolean(couple) });
 
   // Лента закрывается по Esc и по нажатию вне блока выбора.
@@ -68,15 +64,10 @@ export function MoodSelector({ compact = false }: { compact?: boolean }) {
   }, [openGroup]);
 
   const save = async () => {
-    if (!supabase || !couple || !profile || !selected) return;
+    if (!couple || !profile || !selected) return;
     setSaving(true); setError("");
-    const { error: saveError } = await supabase
-      .from("mood_entries")
-      .upsert(
-        { couple_id: couple.id, user_id: profile.id, day: today, mood: selected, note: note.trim() || null },
-        { onConflict: "couple_id,user_id,day" },
-      );
-    if (saveError) setError("Не удалось сохранить отметку. Если выбрана новая эмоция, примените миграцию 033_mood_catalog.sql.");
+    const saved = await saveMood(couple.id, profile.id, today, selected, note.trim() || null);
+    if (!saved) setError("Не удалось сохранить отметку. Если выбрана новая эмоция, примените миграцию 033_mood_catalog.sql.");
     else await load();
     setSaving(false);
   };
@@ -141,7 +132,6 @@ export function MoodSelector({ compact = false }: { compact?: boolean }) {
                 type="button"
                 role="radio"
                 aria-checked={Boolean(picked)}
-                aria-expanded={open}
                 aria-label={`${group.label}${picked ? `: ${picked.label}` : ""}. Зажмите, чтобы выбрать точнее`}
                 style={hueStyle(shown.hue)}
                 className={`mg-btn mg-${group.id} ${picked ? "is-selected" : ""} ${open ? "is-open" : ""}`}

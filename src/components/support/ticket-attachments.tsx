@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { MediaViewer } from "@/components/ui/media-viewer";
 import { supportImageUrls } from "@/services/support";
+import { PlainImage } from "@/components/ui/plain-image";
 
 /** Фото из обращения: миниатюры и просмотр на весь экран. Нужен и автору, и администратору. */
 export function TicketAttachments({ paths }: { paths: string[] | null | undefined }) {
@@ -28,7 +29,7 @@ export function TicketAttachments({ paths }: { paths: string[] | null | undefine
         {list.map((p, i) => (
           <li key={p}>
             <button type="button" onClick={() => urls[p] && setOpen(i)} aria-label={`Открыть вложение ${i + 1} на весь экран`} className="block size-16 overflow-hidden rounded-xl bg-sand-100 ring-1 ring-sand-200 transition hover:ring-accent-600">
-              {urls[p] && /* eslint-disable-next-line @next/next/no-img-element */ <img src={urls[p]} alt="" loading="lazy" className="size-full object-cover" />}
+              {urls[p] && <PlainImage src={urls[p]} alt="" loading="lazy" className="size-full object-cover" />}
             </button>
           </li>
         ))}

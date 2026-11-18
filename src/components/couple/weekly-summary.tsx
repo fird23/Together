@@ -1,15 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { CheckCheck, ChevronLeft, ChevronRight, Heart, ListChecks, RotateCcw, Target } from "lucide-react";
 import { MoodIcon } from "@/components/mood/mood-icons";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { useWeeklyLayout } from "@/hooks/use-weekly-layout";
 import { SIZES, isWeeklyDefault, moveTile, resetWeeklyLayout, setTileSize, type TileId, type TileSize } from "@/lib/weekly-layout-store";
-import { db } from "@/lib/supabase";
+import { loadWeekData } from "@/services/insights";
+import { loadMoodsSince } from "@/services/moods";
 import { addDays, todayISO } from "@/utils/days";
 import { featureOn } from "@/utils/features";
 import { cn } from "@/utils/cn";
+import { useLoad } from "@/hooks/use-load";
 
 type Stats = {
   habitPct: { me: number; partner: number } | null;
@@ -39,18 +41,11 @@ export function WeeklySummary({ editing = false }: { editing?: boolean }) {
   const load = useCallback(async () => {
     if (!couple || !profile) return;
     const from = addDays(todayISO(), -6);
-    const sb = db();
     const meId = profile.id, pId = partner?.id ?? "";
-    const [habitsRes, moodRes, todoRes, gratRes] = await Promise.all([
-      sb.from("habits").select("id,scope,owner_id,week_days,per_week").eq("couple_id", couple.id),
-      sb.from("mood_entries").select("user_id,mood,day").eq("couple_id", couple.id).gte("day", from),
-      sb.from("todos").select("done_by").eq("couple_id", couple.id).not("done_at", "is", null).gte("done_at", `${from}T00:00:00`),
-      sb.from("gratitude_notes").select("user_id").eq("couple_id", couple.id).gte("day", from),
-    ]);
-    const habits = habitsRes.data ?? [];
+    const [week, moodRows] = await Promise.all([loadWeekData(couple.id, from), loadMoodsSince(couple.id, from)]);
+    const { habits, marks } = week;
     let habitPct: Stats["habitPct"] = null;
     if (habits.length) {
-      const { data: marks } = await sb.from("habit_checkins").select("habit_id,user_id,day").in("habit_id", habits.map((h) => h.id)).gte("day", from);
       // План недели у каждой привычки: каждый день = 7, выбранные дни = их число, «N в неделю» = N.
       const planOf = (h: { week_days?: number[] | null; per_week?: number | null }) => (h.per_week ? h.per_week : h.week_days?.length ? h.week_days.length : 7);
       const pct = (uid: string) => {
@@ -59,7 +54,7 @@ export function WeeklySummary({ editing = false }: { editing?: boolean }) {
         let planned = 0, made = 0;
         for (const h of mine) {
           const plan = planOf(h);
-          const doneDays = new Set((marks ?? []).filter((m) => m.user_id === uid && m.habit_id === h.id).map((m) => m.day)).size;
+          const doneDays = new Set(marks.filter((m) => m.user_id === uid && m.habit_id === h.id).map((m) => m.day)).size;
           planned += plan; made += Math.min(plan, doneDays);
         }
         return Math.round((made / planned) * 100);
@@ -67,15 +62,15 @@ export function WeeklySummary({ editing = false }: { editing?: boolean }) {
       habitPct = { me: pct(meId), partner: pct(pId) };
     }
     const count = (rows: { [k: string]: unknown }[] | null, key: string, uid: string) => (rows ?? []).filter((r) => r[key] === uid).length;
-    const moodMap = (uid: string) => Object.fromEntries((moodRes.data ?? []).filter((m) => m.user_id === uid).map((m) => [m.day as string, m.mood as string]));
+    const moodMap = (uid: string) => Object.fromEntries(moodRows.filter((m) => m.user_id === uid).map((m) => [m.day as string, m.mood as string]));
     setStats({
       habitPct,
-      todos: { me: count(todoRes.data, "done_by", meId), partner: count(todoRes.data, "done_by", pId) },
-      gratitude: { me: count(gratRes.data, "user_id", meId), partner: count(gratRes.data, "user_id", pId) },
+      todos: { me: count(week.todos, "done_by", meId), partner: count(week.todos, "done_by", pId) },
+      gratitude: { me: count(week.gratitude, "user_id", meId), partner: count(week.gratitude, "user_id", pId) },
       moods: { me: moodMap(meId), partner: moodMap(pId) },
     });
   }, [couple, profile, partner]);
-  useEffect(() => { void load(); }, [load]);
+  useLoad(load);
 
   if (!couple || !profile) return null;
   if (!stats) return <p className="text-sm text-ink-soft">Считаем итоги…</p>;

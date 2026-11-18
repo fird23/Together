@@ -1,4 +1,6 @@
--- Together MVP schema. Run once in Supabase Dashboard -> SQL Editor.
+-- Together: базовая схема (профили, пары, участники, приглашения). Выполнять один раз в Supabase Dashboard -> SQL Editor.
+-- ВАЖНО: это только основа. Остальные таблицы и функции создают файлы из папки migrations (002, 003, ... 037)
+-- по порядку номеров. Порядок и остальные шаги описаны в SETUP.md.
 create extension if not exists pgcrypto;
 
 create table if not exists public.profiles (

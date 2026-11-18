@@ -7,6 +7,7 @@ import { isNativeApp } from "@/lib/native";
 import { disableNativePush, enableNativePush, nativePushAvailable, storedToken } from "@/lib/native-push";
 import { VAPID_PUBLIC_KEY, currentSubscription, needsInstallOnIos, pushSupported, showLocalTest, subscribePush, unsubscribePush, webPermission } from "@/lib/push";
 import { defaultPrefs, removeSubscription, savePrefs, saveSubscription, sendTestPush, getPrefs } from "@/services/notifications";
+import { useLoad } from "@/hooks/use-load";
 
 export type PushStatus = "loading" | "on" | "off" | "denied" | "ios-install" | "unsupported" | "unconfigured" | "native-unavailable";
 
@@ -61,8 +62,8 @@ export function usePush() {
 
   const refresh = useCallback(async () => { setStatus(await detect()); }, []);
 
+  useLoad(refresh);
   useEffect(() => {
-    void refresh();
     const onChange = () => void refresh();
     const onVisible = () => { if (document.visibilityState === "visible") void refresh(); }; // разрешение могли поменять в настройках
     window.addEventListener(CHANGED, onChange);

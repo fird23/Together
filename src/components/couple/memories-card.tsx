@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Illustration } from "@/components/ui/illustrations";
 import { MoodIcon } from "@/components/mood/mood-icons";
 import { useWorkspace } from "@/components/providers/workspace-provider";
-import { db } from "@/lib/supabase";
+import { loadGratitudeOnDays } from "@/services/insights";
+import { loadMoodsOnDays } from "@/services/moods";
 import { listEvents } from "@/services/calendar";
 import { expandEvents, eventsOnDay } from "@/utils/calendar";
 import { addMonths, todayISO } from "@/utils/days";
 import type { CalendarEvent } from "@/types";
+import { useLoad } from "@/hooks/use-load";
 
 type Memory = {
   date: string;
@@ -34,23 +36,22 @@ export function MemoriesCard() {
     const today = todayISO();
     const dates = PERIODS.map((p) => ({ date: addMonths(today, -p.months), label: p.label }));
     const days = dates.map((d) => d.date);
-    const sb = db();
-    const [moodRes, gratRes, events] = await Promise.all([
-      sb.from("mood_entries").select("user_id,mood,day").eq("couple_id", couple.id).in("day", days),
-      sb.from("gratitude_notes").select("user_id,text,day").eq("couple_id", couple.id).in("day", days),
+    const [moodRows, gratRows, events] = await Promise.all([
+      loadMoodsOnDays(couple.id, days),
+      loadGratitudeOnDays(couple.id, days),
       listEvents(couple.id, days[days.length - 1], days[0]).then((raw) => expandEvents(raw, days[days.length - 1], days[0])).catch(() => [] as CalendarEvent[]),
     ]);
     const result: Memory[] = [];
     for (const { date, label } of dates) {
-      const mood = (uid?: string) => (moodRes.data ?? []).find((m) => m.day === date && m.user_id === uid)?.mood as string | undefined;
-      const gratitude = (gratRes.data ?? []).filter((g) => g.day === date).map((g) => ({ who: g.user_id === profile.id ? "Вы" : partner?.display_name ?? "Партнёр", text: g.text as string }));
+      const mood = (uid?: string) => moodRows.find((m) => m.day === date && m.user_id === uid)?.mood;
+      const gratitude = gratRows.filter((g) => g.day === date).map((g) => ({ who: g.user_id === profile.id ? "Вы" : partner?.display_name ?? "Партнёр", text: g.text }));
       const dayEvents = eventsOnDay(events, date);
       const moods = { me: mood(profile.id), partner: mood(partner?.id) };
       if (moods.me || moods.partner || gratitude.length || dayEvents.length) result.push({ date, label, moods, gratitude, events: dayEvents });
     }
     setItems(result);
   }, [couple, profile, partner]);
-  useEffect(() => { void load(); }, [load]);
+  useLoad(load);
 
   if (!couple || !profile) return null;
   const partnerName = partner?.display_name ?? "Партнёр";

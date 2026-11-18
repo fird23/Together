@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Bug, HelpCircle, ImagePlus, Lightbulb, MessageCircle, Send, X, type LucideIcon } from "lucide-react";
 import { Illustration } from "@/components/ui/illustrations";
@@ -14,6 +14,7 @@ import { TicketAttachments } from "@/components/support/ticket-attachments";
 import { MAX_ATTACHMENTS, listMyTickets, removeSupportImages, sendTicket, uploadSupportImages } from "@/services/support";
 import type { SupportTicket, TicketKind, TicketStatus } from "@/types";
 import { cn } from "@/utils/cn";
+import { useLoad } from "@/hooks/use-load";
 
 const KINDS: { id: TicketKind; label: string; icon: LucideIcon; hint: string }[] = [
   { id: "idea", label: "Предложение", icon: Lightbulb, hint: "Чего не хватает или что хочется изменить" },
@@ -49,7 +50,7 @@ export function SupportView() {
     try { setTickets(await listMyTickets()); setListError(""); }
     catch (e) { setTickets([]); setListError(e instanceof Error ? e.message : GENERIC_ERROR); }
   }, []);
-  useEffect(() => { void loadTickets(); }, [loadTickets]);
+  useLoad(loadTickets);
 
   if (!profile || !session) return null;
   const current = KINDS.find((k) => k.id === kind)!;

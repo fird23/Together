@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Check, ImagePlus, Trash2 } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import { HERO_PHOTO_ACCEPT, prepareHeroPhoto } from "@/lib/hero-photo";
 import { compressImage } from "@/lib/image";
 import { addHeroPhoto, deleteHeroPhoto, heroBlurPx, heroPhotoUrls, listHeroPhotos, selectHeroPhoto, setHeroBlurAmount, setHeroEnabled, type HeroPhoto } from "@/services/hero-photo";
 import { cn } from "@/utils/cn";
+import { useLoad } from "@/hooks/use-load";
+import { PlainImage } from "@/components/ui/plain-image";
 
 /** Пять уровней размытия вместо ползунка на 25 делений. */
 const BLUR_LEVELS = [{ px: 0, label: "Нет" }, { px: 6, label: "Слабое" }, { px: 12, label: "Среднее" }, { px: 18, label: "Сильное" }, { px: 24, label: "Максимум" }];
@@ -41,7 +43,7 @@ export function HeroPhotoSettings() {
       setThumbs(await heroPhotoUrls(list.map((p) => p.thumb_path ?? p.path)));
     } catch { setLibrary([]); setLibraryMissing(true); }
   }, [coupleId]);
-  useEffect(() => { void loadLibrary(); }, [loadLibrary]);
+  useLoad(loadLibrary);
 
   if (!couple || !profile) return null;
   const hasPhoto = Boolean(currentPath);
@@ -111,7 +113,7 @@ export function HeroPhotoSettings() {
                     aria-label={current ? "Это фото сейчас выбрано" : "Поставить это фото на карточку"}
                     className={cn("relative block aspect-square w-full overflow-hidden rounded-xl bg-sand-100 ring-1 ring-sand-200 transition focus-visible:outline-2 focus-visible:outline-accent-600", current && "ring-2 ring-accent-600")}
                   >
-                    {src && /* eslint-disable-next-line @next/next/no-img-element */ <img src={src} alt="" loading="lazy" className={cn("size-full object-cover", current && !enabled && "opacity-60")} />}
+                    {src && <PlainImage src={src} alt="" loading="lazy" className={cn("size-full object-cover", current && !enabled && "opacity-60")} />}
                     {who && <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/60 to-transparent px-1.5 pb-1 pt-5 text-left text-[10px] font-medium text-white">{who}</span>}
                     {current && <span className="absolute left-1 top-1 inline-flex items-center gap-0.5 rounded-full bg-accent-600 px-1.5 py-0.5 text-[10px] font-semibold text-on-accent"><Check className="size-3" aria-hidden />{enabled ? "Сейчас" : "Выбрано"}</span>}
                   </button>

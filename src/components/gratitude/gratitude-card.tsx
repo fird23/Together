@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Check, Heart } from "lucide-react";
 import { Illustration } from "@/components/ui/illustrations";
@@ -10,6 +10,7 @@ import { GENERIC_ERROR } from "@/lib/errors";
 import { listGratitude, saveGratitude } from "@/services/gratitude";
 import { todayISO } from "@/utils/days";
 import type { GratitudeNote } from "@/types";
+import { useLoad } from "@/hooks/use-load";
 
 const dayLabel = (iso: string) => new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
 
@@ -36,7 +37,7 @@ export function GratitudeCard() {
       setError("");
     } catch (e) { setError(e instanceof Error ? e.message : GENERIC_ERROR); }
   }, [couple, profile, today]);
-  useEffect(() => { void load(); }, [load]);
+  useLoad(load);
   useRealtime("gratitude_notes", load, { filter: couple ? `couple_id=eq.${couple.id}` : undefined, enabled: Boolean(couple) });
 
   if (!couple || !profile) return null;

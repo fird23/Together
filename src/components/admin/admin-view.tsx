@@ -13,6 +13,7 @@ import { GENERIC_ERROR } from "@/lib/errors";
 import { getAdminStats, isAdmin, listAllTickets, listAudit, updateTicket } from "@/services/admin";
 import type { AdminStats, AdminTicket, AuditEntry, TicketKind, TicketStatus } from "@/types";
 import { cn } from "@/utils/cn";
+import { useLoad } from "@/hooks/use-load";
 
 const KINDS: Record<TicketKind, { label: string; icon: LucideIcon }> = {
   idea: { label: "Предложение", icon: Lightbulb },
@@ -79,8 +80,9 @@ function AdminContent() {
     try { setAudit(await listAudit()); } catch { setAudit([]); }
   }, []);
 
-  useEffect(() => { void loadStats(); void loadAudit(); }, [loadStats, loadAudit]);
-  useEffect(() => { void loadTickets(); }, [loadTickets]);
+  useLoad(loadStats);
+  useLoad(loadAudit);
+  useLoad(loadTickets);
 
   const refreshAll = () => { void loadStats(); void loadTickets(); void loadAudit(); };
 

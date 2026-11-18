@@ -7,6 +7,7 @@ import type { Session } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { signOut as signOutService } from "@/services/auth";
 import { touchLastSeen } from "@/services/admin";
+import { clearUrlCache } from "@/lib/signed-urls";
 import { SetupScreen } from "@/components/layout/setup-screen";
 import type { Couple, Profile } from "@/types";
 
@@ -61,6 +62,21 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     const id = ++requestId.current;
     try {
       const userId = current.user.id;
+
+      // Быстрый путь: один запрос к базе (миграция 037). Если её ещё нет или она вернула ошибку, идём прежним путём ниже.
+      const fast = await client.rpc("get_workspace");
+      if (!fast.error && fast.data) {
+        const row = fast.data as { profile: Profile | null; couple: Couple | null; member_ids: string[]; partner: Profile | null; alias: string | null };
+        const partner: Profile | null = row.partner
+          ? { ...row.partner, real_name: row.partner.display_name, ...(row.alias ? { display_name: row.alias } : {}) }
+          : null;
+        if (id !== requestId.current) return; // пришёл более свежий запрос
+        setData({ profile: row.profile, couple: row.couple, partner, memberCount: row.member_ids?.length ?? 0 });
+        setStatus("ready");
+        void touchLastSeen();
+        return;
+      }
+
       const [profileRes, membershipRes] = await Promise.all([
         client.from("profiles").select("*").eq("id", userId).maybeSingle(),
         client.from("couple_members").select("couple_id").eq("user_id", userId).maybeSingle(),
@@ -120,6 +136,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (!next) {
+        clearUrlCache(); // сессия закончилась (в том числе сама): ссылки на фото с устройства убираем
         requestId.current++;
         setData(EMPTY);
         setStatus("signed-out");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Bell, BellOff, BellRing, Send } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { GENERIC_ERROR } from "@/lib/errors";
 import { defaultPrefs, getPrefs, savePrefs } from "@/services/notifications";
 import { featureOn } from "@/utils/features";
 import type { NotificationPrefs } from "@/types";
+import { useLoad } from "@/hooks/use-load";
 
 const hours = Array.from({ length: 17 }, (_, i) => i + 7); // 7:00–23:00
 
@@ -25,7 +26,7 @@ export function NotificationSettings() {
     if (!profile) return;
     try { setPrefs(await getPrefs(profile.id)); } catch (e) { setPrefsError(e instanceof Error ? e.message : GENERIC_ERROR); }
   }, [profile]);
-  useEffect(() => { void loadPrefs(); }, [loadPrefs]);
+  useLoad(loadPrefs);
 
   if (!profile) return null;
   const habitsOn = featureOn(couple, "habits");

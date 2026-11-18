@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type { FormEvent } from "react";
 import Link from "next/link";
 import { ArrowUpRight, CalendarDays, Check, Plus } from "lucide-react";
@@ -13,6 +13,7 @@ import { addDays, todayISO } from "@/utils/days";
 import { cn } from "@/utils/cn";
 import { colorHex } from "@/utils/calendar";
 import type { Todo } from "@/types";
+import { useLoad } from "@/hooks/use-load";
 
 const LIMIT = 5;
 
@@ -28,7 +29,7 @@ export function TodosPreview() {
     try { setItems(await listTodos(couple.id)); setError(""); }
     catch (e) { setItems((prev) => prev ?? []); setError(e instanceof Error ? e.message : GENERIC_ERROR); }
   }, [couple]);
-  useEffect(() => { void load(); }, [load]);
+  useLoad(load);
   useRealtime("todos", load, { filter: couple ? `couple_id=eq.${couple.id}` : undefined, enabled: Boolean(couple) });
 
   if (!couple || !profile) return null;

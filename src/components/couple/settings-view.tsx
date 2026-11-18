@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { Bell, Eye, HeartHandshake, PanelBottom, Smartphone, KeyRound, LayoutGrid, LifeBuoy, Palette, ShieldAlert, UserRound, type LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
@@ -68,11 +68,13 @@ function ActionRow({ title, text, children }: { title: string; text: string; chi
   );
 }
 
+const subscribeNever = () => () => {};
+
 export function SettingsView() {
   const { profile, partner, couple, session, memberCount } = useWorkspace();
   const [active, setActive] = useState("appearance");
-  const [native, setNative] = useState(false);
-  useEffect(() => { setNative(isNativeApp()); }, []);
+  // Внутри Android-приложения или нет: на сервере всегда «нет», в браузере читаем сразу, без лишней перерисовки
+  const native = useSyncExternalStore(subscribeNever, isNativeApp, () => false);
   const hasCouple = Boolean(couple);
 
   // Подсвечиваем в боковом меню раздел, который сейчас на экране.

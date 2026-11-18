@@ -1,6 +1,7 @@
 import { db } from "@/lib/supabase";
 import { AppError, dbError } from "@/lib/errors";
 import { AVATAR_BUCKET } from "@/lib/avatar";
+import { clearUrlCache } from "@/lib/signed-urls";
 
 export async function updateDisplayName(userId: string, name: string) {
   const { data, error } = await db()
@@ -59,6 +60,7 @@ export async function deleteAccount(avatarPath: string | null) {
   if (avatarPath) await db().storage.from(AVATAR_BUCKET).remove([avatarPath]); // ошибка тут не критична
   const { error } = await db().rpc("delete_my_account");
   if (error) throw dbError(error);
+  clearUrlCache();
 }
 
 /** Своё имя для партнёра (видно только вам). Пустое значение возвращает настоящее имя. */

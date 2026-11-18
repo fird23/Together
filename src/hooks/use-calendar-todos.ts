@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { useRealtime } from "@/hooks/use-realtime";
 import { listTodosInRange } from "@/services/todos";
 import type { Todo } from "@/types";
+import { useLoad } from "@/hooks/use-load";
 
 /** Дела пары со сроком в отрезке [from, to] (YYYY-MM-DD): они показываются в календаре вместе с пометками. */
 export function useCalendarTodos(from: string, to: string, enabled = true) {
@@ -17,7 +18,7 @@ export function useCalendarTodos(from: string, to: string, enabled = true) {
     catch { /* календарь работает и без дел, если миграция списка дел не применена */ }
   }, [couple, from, to, enabled]);
 
-  useEffect(() => { void reload(); }, [reload]);
+  useLoad(reload);
   useRealtime("todos", reload, { filter: couple ? `couple_id=eq.${couple.id}` : undefined, enabled: Boolean(couple) && enabled });
 
   return { todos, reload };

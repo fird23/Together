@@ -7,7 +7,6 @@ import {
   Check, 
   ChevronDown, 
   ChevronUp, 
-  GripVertical, 
   MessageSquare, 
   Pencil, 
   Plus, 
@@ -15,13 +14,11 @@ import {
   X 
 } from "lucide-react";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { PageHeader } from "@/components/layout/page-header";
 import { Illustration } from "@/components/ui/illustrations";
 import { FeatureOff } from "@/components/ui/feature-off";
 import { Modal } from "@/components/ui/modal";
-import { Button } from "@/components/ui/button";
 import { RowMenu } from "@/components/ui/row-menu";
 import { DueDateButton } from "@/components/todos/due-date-button";
 import { ColorPicker } from "@/components/ui/color-picker";
@@ -30,73 +27,21 @@ import { useRealtime } from "@/hooks/use-realtime";
 import { GENERIC_ERROR } from "@/lib/errors";
 import { addTodo, listTodos, removeTodo, setTodoDone, setTodoOrder, updateTodo } from "@/services/todos";
 import { addDays, todayISO } from "@/utils/days";
+import { SortableLi } from "@/components/todos/sortable-li";
+import { EditForm, type Who } from "@/components/todos/todo-edit-form";
+import { parseTodoTitle, encodeTodoTitle, type Subtask } from "@/utils/todo-title";
 import { featureOn } from "@/utils/features";
 import { cn } from "@/utils/cn";
 import { colorHex } from "@/utils/calendar";
 import type { EventColor, Todo } from "@/types";
+import { useLoad } from "@/hooks/use-load";
 
-type Who = "both" | "me" | "partner";
 type Filter = "all" | Who;
-
-interface Subtask {
-  id: string;
-  title: string;
-  done: boolean;
-}
-
-interface ParsedTodoData {
-  cleanTitle: string;
-  comment: string;
-  subtasks: Subtask[];
-}
-
-function parseTodoTitle(rawTitle: string): ParsedTodoData {
-  try {
-    if (rawTitle.startsWith("{") && rawTitle.endsWith("}")) {
-      const parsed = JSON.parse(rawTitle);
-      return {
-        cleanTitle: parsed.t || "",
-        comment: parsed.c || "",
-        subtasks: Array.isArray(parsed.s) ? parsed.s : [],
-      };
-    }
-  } catch {}
-  return { cleanTitle: rawTitle, comment: "", subtasks: [] };
-}
-
-function encodeTodoTitle(cleanTitle: string, comment: string, subtasks: Subtask[]): string {
-  if (!comment.trim() && subtasks.length === 0) {
-    return cleanTitle.trim();
-  }
-  return JSON.stringify({
-    t: cleanTitle.trim(),
-    c: comment.trim(),
-    s: subtasks,
-  });
-}
 
 const shortDate = (iso: string) => 
   new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" })
     .format(new Date(`${iso}T00:00:00Z`))
     .replace(".", "");
-
-/** Строка списка, которую можно перетащить за ручку слева. Перетаскивание только по вертикали и только за ручку, поэтому прокрутка пальцем не мешает. */
-function SortableLi({ id, enabled, className, style, children }: {
-  id: string; enabled: boolean; className?: string; style?: React.CSSProperties; children: (grip: React.ReactNode) => React.ReactNode;
-}) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: !enabled });
-  const grip = enabled ? (
-    <button type="button" ref={setActivatorNodeRef} {...attributes} {...listeners} className="todo-grip" aria-label="Перетащить, чтобы изменить порядок">
-      <GripVertical size={17} aria-hidden />
-    </button>
-  ) : null;
-  return (
-    <li ref={setNodeRef} className={cn(className, isDragging && "is-dragging")}
-      style={{ ...style, transform: CSS.Transform.toString(transform ? { ...transform, x: 0, scaleX: 1, scaleY: 1 } : null), transition, position: "relative", zIndex: isDragging ? 5 : undefined }}>
-      {children(grip)}
-    </li>
-  );
-}
 
 export function TodosView() {
   const { couple, profile, partner } = useWorkspace();
@@ -130,7 +75,7 @@ export function TodosView() {
     try { setItems(await listTodos(couple.id)); setError(""); }
     catch (e) { setItems((prev) => prev ?? []); setError(e instanceof Error ? e.message : GENERIC_ERROR); }
   }, [couple]);
-  useEffect(() => { void load(); }, [load]);
+  useLoad(load);
   useRealtime("todos", load, { filter: couple ? `couple_id=eq.${couple.id}` : undefined, enabled: Boolean(couple) });
 
   if (!couple || !profile) return null;
@@ -442,91 +387,5 @@ export function TodosView() {
           }} />}
       </Modal>
     </div>
-  );
-}
-
-function EditForm({ todo, who: initialWho, partnerName, hasPartner, onCancel, onSave }: {
-  todo: Todo; who: Who; partnerName: string; hasPartner: boolean; onCancel: () => void; onSave: (v: { title: string; comment: string; subtasks: Subtask[]; who: Who; due: string; color: EventColor | null }) => Promise<void>;
-}) {
-  const initialData = parseTodoTitle(todo.title);
-  const [title, setTitle] = useState(initialData.cleanTitle);
-  const [comment, setComment] = useState(initialData.comment);
-  const [subtasks, setSubtasks] = useState<Subtask[]>(initialData.subtasks);
-  const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
-  
-  const [who, setWho] = useState<Who>(initialWho);
-  const [due, setDue] = useState(todo.due_day ?? "");
-  const [color, setColor] = useState<EventColor | null>(todo.color ?? null);
-  const [pending, setPending] = useState(false);
-
-  const addSubtask = () => {
-    if (!newSubtaskTitle.trim()) return;
-    setSubtasks([...subtasks, { id: Date.now().toString(), title: newSubtaskTitle.trim(), done: false }]);
-    setNewSubtaskTitle("");
-  };
-
-  const removeSubtask = (id: string) => {
-    setSubtasks(subtasks.filter((s) => s.id !== id));
-  };
-
-  return (
-    <form className="space-y-4" onSubmit={async (e) => { 
-      e.preventDefault(); 
-      if (!title.trim()) return; 
-      setPending(true); 
-      const fullSubtasks = [...subtasks];
-      if (newSubtaskTitle.trim()) {
-        fullSubtasks.push({ id: Date.now().toString(), title: newSubtaskTitle.trim(), done: false });
-      }
-      await onSave({ title, comment, subtasks: fullSubtasks, who, due, color }); 
-    }}>
-      <div>
-        <label className="text-xs font-medium text-ink-soft mb-1 block">Название дела</label>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} aria-label="Название дела" className="hb-input" autoFocus />
-      </div>
-
-      <div>
-        <label className="text-xs font-medium text-ink-soft mb-1 block">Комментарий</label>
-        <input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Добавьте пояснение к делу…" className="hb-input text-xs" />
-      </div>
-
-      <div>
-        <label className="text-xs font-medium text-ink-soft mb-1 block">Подпункты</label>
-        <div className="space-y-2 mb-2">
-          {subtasks.map((st) => (
-            <div key={st.id} className="flex items-center gap-2 text-xs bg-sand-50 px-2.5 py-1.5 rounded-lg">
-              <span className="flex-1 font-medium">{st.title}</span>
-              <button type="button" onClick={() => removeSubtask(st.id)} className="text-ink-faint hover:text-danger">
-                <X size={14} />
-              </button>
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-2">
-          <input
-            value={newSubtaskTitle}
-            onChange={(e) => setNewSubtaskTitle(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSubtask(); } }}
-            placeholder="Добавить подпункт…"
-            className="hb-input flex-1 text-xs"
-          />
-          <button type="button" onClick={addSubtask} className="hb-button text-xs px-3 py-1 bg-secondary">
-            Добавить
-          </button>
-        </div>
-      </div>
-
-      <div className="hb-segment mt-0!" role="radiogroup" aria-label="Для кого дело">
-        {([["both", "Вместе"], ["me", "Я"], ...(hasPartner ? [["partner", partnerName]] : [])] as [Who, string][]).map(([id, label]) => (
-          <button type="button" key={id} role="radio" aria-checked={who === id} className={cn("px-3", who === id && "active")} onClick={() => setWho(id)}>{label}</button>
-        ))}
-      </div>
-      <DueDateButton value={due} onChange={setDue} />
-      <ColorPicker value={color} onChange={setColor} label="Цвет дела" />
-      <div className="flex justify-end gap-3 pt-2">
-        <Button variant="secondary" onClick={onCancel} disabled={pending}>Отмена</Button>
-        <Button type="submit" loading={pending}>Сохранить</Button>
-      </div>
-    </form>
   );
 }

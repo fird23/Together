@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#F7F5EC">
+<title>Нет соединения — Together</title>
+<style>
+  :root { color-scheme: light dark; --bg:#F7F5EC; --ink:#2B2A33; --soft:#6B6A75; --accent:#4A52A3; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#17161C; --ink:#F1EFE8; --soft:#A9A7B3; --accent:#9AA3F0; } }
+  html, body { height: 100%; margin: 0; }
+  body { display: grid; place-items: center; background: var(--bg); color: var(--ink); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding: 24px; box-sizing: border-box; }
+  main { max-width: 340px; text-align: center; }
+  .mark { font-size: 44px; line-height: 1; }
+  h1 { font-family: Georgia, "Times New Roman", serif; font-size: 24px; margin: 18px 0 8px; }
+  p { color: var(--soft); line-height: 1.5; margin: 0; }
+  button { margin-top: 24px; border: 0; border-radius: 999px; background: var(--accent); color: #fff; font-size: 16px; padding: 12px 28px; }
+  @media (prefers-color-scheme: dark) { button { color: #17161C; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="mark" aria-hidden="true">&#9825;</div>
+  <h1>Нет соединения</h1>
+  <p>Проверьте интернет и попробуйте ещё раз. Как только связь появится, Together откроется сам.</p>
+  <button type="button" onclick="location.reload()">Повторить</button>
+</main>
+<script>
+  window.addEventListener("online", function () { location.reload(); });
+</script>
+</body>
+</html>

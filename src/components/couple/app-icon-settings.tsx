@@ -10,12 +10,12 @@ import { cn } from "@/utils/cn";
 /** Выбор иконки. В приложении для Android иконка меняется на самом телефоне, на сайте задаёт иконку будущего ярлыка. */
 export function AppIconSettings() {
   const native = isNativeApp();
-  const [current, setCurrent] = useState<AppIconId>("classic");
+  const [current, setCurrent] = useState<AppIconId>(() => (native ? "classic" : savedWebIcon()));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
-    if (!native) { setCurrent(savedWebIcon()); return; }
+    if (!native) return;
     TogetherNative.getAppIcon().then((r) => { if (isIconId(r.icon)) setCurrent(r.icon); }).catch(() => {});
   }, [native]);
 

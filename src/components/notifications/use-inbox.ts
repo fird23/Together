@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { useRealtime } from "@/hooks/use-realtime";
 import { clearInbox, listInbox, markRead, type InboxItem } from "@/services/inbox";
+import { useLoad } from "@/hooks/use-load";
 
 /** История уведомлений текущего пользователя. Обновляется сама, когда приходит новое. */
 export function useInbox() {
@@ -17,7 +18,7 @@ export function useInbox() {
     catch { setItems((prev) => prev ?? []); setFailed(true); }
   }, [profile]);
 
-  useEffect(() => { void load(); }, [load]);
+  useLoad(load);
   useRealtime("notifications", load, { filter: profile ? `user_id=eq.${profile.id}` : undefined, enabled: Boolean(profile) });
 
   const unread = (items ?? []).filter((i) => !i.read_at).length;

@@ -8,6 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "sync:moods": "node scripts/sync-moods.mjs",
+    "check:moods": "node scripts/sync-moods.mjs --check",
     "cap:sync": "cap sync android",
     "cap:open": "cap open android",
     "android:debug": "cap sync android && cd android && ./gradlew assembleDebug",
@@ -26,9 +29,9 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@supabase/supabase-js": "^2.57.0",
     "lucide-react": "^1.67.0",
-    "next": "16.4.4",
-    "react": "19.3.1",
-    "react-dom": "19.3.1",
+    "next": "^16.4.6",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
@@ -40,6 +43,10 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.4",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.1.1"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
   }
 }

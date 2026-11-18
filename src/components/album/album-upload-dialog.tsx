@@ -7,6 +7,7 @@ import { Modal } from "@/components/ui/modal";
 import { readPhotoDate } from "@/lib/exif";
 import { MAX_VIDEO_BYTES, canCompressVideo, fmtMB, isVideo } from "@/lib/video";
 import type { AlbumUploadItem } from "@/components/album/use-album";
+import { PlainImage } from "@/components/ui/plain-image";
 
 const localDay = (ms: number) => {
   const d = new Date(ms);
@@ -41,10 +42,10 @@ function UploadForm({ files, onClose, onConfirm }: { files: File[]; onClose: () 
     return () => { alive = false; };
   }, [files, max]);
 
-  // Адреса превью живут, пока открыт диалог (и пересоздаются, если эффект перезапустится).
+  // Адреса превью живут, пока открыт диалог. Создаём их при выборе файлов и освобождаем при смене и закрытии.
   useEffect(() => {
     const urls = files.map((f) => URL.createObjectURL(f));
-    setPreviews(urls);
+    queueMicrotask(() => setPreviews(urls));
     return () => urls.forEach((u) => URL.revokeObjectURL(u));
   }, [files]);
 
@@ -71,8 +72,7 @@ function UploadForm({ files, onClose, onConfirm }: { files: File[]; onClose: () 
           <li key={r.idx} className="flex items-center gap-3 rounded-xl bg-paper p-2 ring-1 ring-sand-200">
             {isVideo(r.file)
               ? <span className="relative size-14 shrink-0 overflow-hidden rounded-lg bg-sand-200">{previews[r.idx] && <video src={`${previews[r.idx]}#t=0.1`} muted playsInline preload="metadata" className="size-full object-cover" />}<span className="absolute inset-0 grid place-items-center bg-black/25 text-white"><Film className="size-5" aria-hidden /></span></span>
-              // eslint-disable-next-line @next/next/no-img-element
-              : <img src={previews[r.idx]} alt="" className="size-14 shrink-0 rounded-lg object-cover" />}
+              : <PlainImage src={previews[r.idx]} className="size-14 shrink-0 rounded-lg object-cover" />}
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs text-ink-faint">{r.file.name}{isVideo(r.file) ? ` · видео, ${fmtMB(r.file.size)}` : ""}</p>
               {tooBig(r) && <p className="text-xs font-medium text-danger">Больше {fmtMB(MAX_VIDEO_BYTES)}, а сжать в этом браузере нельзя. Обрежьте ролик или уберите его из списка.</p>}
